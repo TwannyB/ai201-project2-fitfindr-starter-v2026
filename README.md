@@ -69,12 +69,12 @@
 - **What it does:** It takes in a new clothing item and a group of other clothing items the user already has, and returns groupings of clothing items as outfit ideas.
 - **Inputs:** new_item (dict) and wardrobe(dict)
 - **Returns:** It returns a string that describes a grouping of the new item and items from the input wardrobe that are similar and can make an outfit.
-- **When it has nothing:** It returns an error string explaining that the tool was unsuccessful in creating an outfit.
+- **When it has nothing:** It returns general styling advice.
 
 ### `create_fit_card`
 
 - **What it does:** It takes in an outfit and a a new outfit item and returns a caption someone would post.
-- **Inputs:** outfit (list[dict]), new_item (dict)
+- **Inputs:** outfit (string), new_item (dict)
 - **Returns:** It returns a string that someone would post as a caption with the outfit and new item
 - **When it has nothing:** It returns an error string explaining that a caption wasn't successfully created.
 
