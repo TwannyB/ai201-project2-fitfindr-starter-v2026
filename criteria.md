@@ -28,7 +28,7 @@ tool calls and returns a fit card — in at least 4 of 5 tries.
 <!-- Why 4 of 5 and not 5 of 5? Something about your search, probably —
      "my search is a plain keyword match and some phrasings will miss" is a
      real answer. -->
-
+This is the basic purpose of the FitFindr project: to search listings, work out potential outfits with the item, and to write a caption for it. 4 of 5 is a valid goal since it allows for an occasional failed model request from suggest_outfit or create_fit_card.
 ---
 
 ## 2. An impossible query stops before the second tool
@@ -39,11 +39,12 @@ Given a query that matches no listings, the agent stops before calling
 **Why this target:**
 <!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
      about this path? -->
-
+The system should be able to handle failed requests, and 5 of 5 is a valid goal since anything lower could allow the system to fabricate results for the first tool in order to continue to the second and third tools.
 ---
 
 ## 3. Something about state
 
+In 5 of 5 tries, the listing dict that is returned from the search in the first tool matches the listing dict that is used as input for the suggest_outfit tool. 
 <!-- YOU WRITE THIS ONE.
 
      How would you know that the item your search found is the same item the
@@ -57,12 +58,14 @@ Given a query that matches no listings, the agent stops before calling
 
 
 **Why this target:**
-
+I chose this target because it tests the system's ability to carry input and output successfully through the different stages. I chose 5 of 5 tries specifically because this is critical and should succeed in all 5 tries since the step copies stored data between tools rather than relying on model generation.
 
 
 ---
 
 ## 4. Something about the fit card
+
+For 5 different selected items, at least 4 of the 5 generated fit cards mention one accurate detail about the selected item or suggested outfit, such as its clothing type, color, a style tag, material, or combination of pieces, and contain no details that contradict those inputs.
 
 <!-- YOU WRITE THIS ONE.
 
@@ -78,6 +81,7 @@ Given a query that matches no listings, the agent stops before calling
 
 
 **Why this target:**
+This target tests another important part of the system, which is the ability to generate accurate captions. There's flexibility in this part since it's model generated, and more than one caption can be accurate, so it's good to have a solid list of what all valid captions should definitely contain. I chose 4 of 5 different generated fit cards for 5 different items because it ensures that different inputs can have valid generated outputs, and model generation isn't always completely accurate so 4 suffices.
 
 
 
@@ -85,6 +89,7 @@ Given a query that matches no listings, the agent stops before calling
 
 ## 5. Your choice
 
+For 5 of 5 tries, the suggest_outfit tool returns grouping in which each listing item in the grouping list shares the same style tag value as the rest of the items in the grouping.
 <!-- YOU WRITE THIS ONE TOO.
 
      Pick something you actually care about getting right. Speed, the empty
@@ -95,6 +100,7 @@ Given a query that matches no listings, the agent stops before calling
 
 
 **Why this target:**
+This tests the accuracy of the suggest_outfit tool since the system is supposed to group together items that are similar in some way rather than the groupings being random. I chose 5 of 5 as the goal because this doesn't rely on model generation, meaning it should be consistent.
 
 
 

@@ -59,24 +59,31 @@
 
 ### `search_listings`
 
-- **What it does:**
-- **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** It searches the listings file and returns items that match the query given by the user.
+- **Inputs:** `description` (string), `size` (string), and `max_price` (float)<!-- name and type each: `max_price` (float), not "a price" -->
+- **Returns:** It returns a list of clothing items, where each item is a listing dict that has an id, title, description, category, style_tags, size, condition, price, colors, brand, and platform.
+- **When it has nothing:**  It returns an empty list.
 
 ### `suggest_outfit`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** It takes in a new clothing item and a group of other clothing items the user already has, and returns groupings of clothing items as outfit ideas.
+- **Inputs:** new_item (dict) and wardrobe(dict)
+- **Returns:** It returns a string that describes a grouping of the new item and items from the input wardrobe that are similar and can make an outfit.
+- **When it has nothing:** It returns an error string explaining that the tool was unsuccessful in creating an outfit.
 
 ### `create_fit_card`
 
-- **What it does:**
-- **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+- **What it does:** It takes in an outfit and a a new outfit item and returns a caption someone would post.
+- **Inputs:** outfit (list[dict]), new_item (dict)
+- **Returns:** It returns a string that someone would post as a caption with the outfit and new item
+- **When it has nothing:** It returns an error string explaining that a caption wasn't successfully created.
+
+### ADDITIONAL/Stretch Feature `find_similar`
+
+- **What it does:** It takes in an item and returns listings for similar clothing items that match the aesthetic, or style tags.
+- **Inputs:** item (dict)
+- **Returns:** It returns a list of dicts where each dict is a listing dict that has an id, title, description, category, style_tags, size, condition, price, colors, brand, and platform.
+- **When it has nothing:** It returns an empty list.
 
 ---
 
