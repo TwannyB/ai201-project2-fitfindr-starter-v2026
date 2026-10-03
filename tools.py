@@ -20,9 +20,89 @@ That last line is what your loop branches on. "Returns a list" earns nothing —
 the description has to say what is *in* the list.
 """
 
+import re
+
 import config  # noqa: F401 — you'll use this in search_listings
 from generate import generate
 from utils.data_loader import load_listings
+
+
+# ── shared helpers ────────────────────────────────────────────────────────────
+
+_STOPWORDS = {
+    "a", "an", "the", "and", "or", "for", "with", "in", "of", "to", "on", "my",
+    "me", "i", "im", "looking", "want", "need", "some", "something", "size",
+    "under", "below", "less", "than", "like", "that", "is", "it",
+}
+
+
+def _stem(word: str) -> str:
+    """Strip a trailing plural 's' so "jeans" matches "jean" and "tops" matches "top"."""
+    return word[:-1] if len(word) > 3 and word.endswith("s") else word
+
+
+def _words(text: str) -> set[str]:
+    """Lowercase keyword set for `text`, minus stopwords, plurals stemmed."""
+    found = re.findall(r"[a-z0-9]+", (text or "").lower())
+    return {_stem(w) for w in found if w not in _STOPWORDS}
+
+
+def _is_one_size(size: str) -> bool:
+    return size.strip().upper().startswith("ONE SIZE")
+
+
+def _size_tokens(size: str) -> set[str]:
+    """
+    Break a size string into whole tokens.
+
+    "S/M" → {S, M}, "US 8.5" → {8.5}, "W30 L30" → {W30, L30},
+    "XL (oversized)" → {XL}. Parenthetical notes and a leading "US" are dropped.
+    """
+    cleaned = re.sub(r"\(.*?\)", " ", size.upper())
+    return {t for t in re.split(r"[/\s]+", cleaned) if t and t != "US"}
+
+
+def _size_matches(listing_size: str, wanted: str) -> bool:
+    """
+    True when every token of the wanted size is a whole token of the listing's
+    size. "One Size" listings only match a request for one size.
+    """
+    if _is_one_size(wanted):
+        return _is_one_size(listing_size)
+    if _is_one_size(listing_size):
+        return False
+    wanted_tokens = _size_tokens(wanted)
+    return bool(wanted_tokens) and wanted_tokens <= _size_tokens(listing_size)
+
+
+def _describe_item(item: dict) -> str:
+    """Format a listing dict as prompt text. Brand is only included when present."""
+    lines = [
+        f"Title: {item.get('title')}",
+        f"Category: {item.get('category')}",
+        f"Colors: {', '.join(item.get('colors') or [])}",
+        f"Style tags: {', '.join(item.get('style_tags') or [])}",
+        f"Size: {item.get('size')}",
+        f"Condition: {item.get('condition')}",
+        f"Price: ${item.get('price')}",
+        f"Platform: {item.get('platform')}",
+    ]
+    if item.get("brand"):
+        lines.append(f"Brand: {item['brand']}")
+    if item.get("description"):
+        lines.append(f"Description: {item['description']}")
+    return "\n".join(lines)
+
+
+def _describe_wardrobe_piece(piece: dict) -> str:
+    line = (
+        f"- {piece.get('name')} ({piece.get('category')}; "
+        f"colors: {', '.join(piece.get('colors') or [])}; "
+        f"style: {', '.join(piece.get('style_tags') or [])})"
+    )
+    if piece.get("notes"):
+        line += f" — {piece['notes']}"
+    return line
 
 
 # ── Tool 1: search_listings ───────────────────────────────────────────────────
@@ -78,8 +158,39 @@ def search_listings(
     Test it from a terminal before you move on:
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
-    # TODO: replace this with your implementation
-    return []
+    listings = load_listings()
+
+    if max_price is not None:
+        listings = [l for l in listings if l["price"] <= max_price]
+
+    if size:
+        listings = [l for l in listings if _size_matches(l["size"], size)]
+
+    query_words = _words(description)
+    if not query_words:
+        return []
+
+    # Title and style tags say what the item *is*, so they count most.
+    weighted_fields = [
+        (lambda l: _words(" ".join(l["style_tags"])), 3),
+        (lambda l: _words(l["title"]), 3),
+        (lambda l: _words(l["category"]), 2),
+        (lambda l: _words(l["brand"] or ""), 2),
+        (lambda l: _words(" ".join(l["colors"])), 1),
+        (lambda l: _words(l["description"]), 1),
+    ]
+
+    scored = []
+    for listing in listings:
+        score = sum(
+            weight * len(query_words & field(listing))
+            for field, weight in weighted_fields
+        )
+        if score > 0:
+            scored.append((score, listing))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [listing for _, listing in scored[: config.SEARCH_RESULT_LIMIT]]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
@@ -112,8 +223,40 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    items = (wardrobe or {}).get("items") or []
+    system = (
+        "You are a thrift-savvy stylist. Give concrete, wearable outfit ideas "
+        "in plain text. Be brief: no more than about 120 words."
+    )
+
+    if not items:
+        prompt = (
+            "Someone is considering this thrifted item:\n\n"
+            f"{_describe_item(new_item)}\n\n"
+            "They haven't shared their wardrobe. Suggest one or two outfits "
+            "built around this item using common, easy-to-find pieces "
+            "(e.g. 'straight-leg jeans', 'white sneakers'), and say what vibe "
+            "each outfit gives."
+        )
+    else:
+        wardrobe_text = "\n".join(_describe_wardrobe_piece(p) for p in items)
+        prompt = (
+            "Someone is considering this thrifted item:\n\n"
+            f"{_describe_item(new_item)}\n\n"
+            "Here is what they already own:\n"
+            f"{wardrobe_text}\n\n"
+            "Suggest one or two outfits that pair the new item with specific "
+            "pieces from their wardrobe, naming each piece exactly as listed. "
+            "Only use pieces from the list above. Say what vibe each outfit gives."
+        )
+
+    response = generate(prompt, system=system)
+    if not response.strip():
+        return (
+            f"Couldn't come up with an outfit for {new_item.get('title')} right "
+            "now. Try again, or pair it with neutral basics you already own."
+        )
+    return response
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
@@ -152,5 +295,82 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not outfit or not outfit.strip():
+        return (
+            "Couldn't write a fit card: there's no outfit suggestion to "
+            "caption. Run suggest_outfit first and pass its result in."
+        )
+
+    system = (
+        "You write short social media captions for thrifted outfits. They "
+        "sound like a real person posting their find, not a product listing."
+    )
+    prompt = (
+        "Write a caption for this thrift find and the outfit built around it.\n\n"
+        f"The item:\n{_describe_item(new_item)}\n\n"
+        f"The outfit:\n{outfit}\n\n"
+        "Rules:\n"
+        "- Two to four sentences.\n"
+        "- Mention the item, its price, and the platform it's from, once each.\n"
+        "- Be specific about the vibe, using real details of the item and "
+        "outfit (colors, style, the pieces it's paired with).\n"
+        "- Don't invent details that contradict the item or outfit above.\n"
+        "- Return only the caption."
+    )
+
+    response = generate(prompt, system=system)
+    if not response.strip():
+        return (
+            f"Couldn't write a fit card for {new_item.get('title')} right now. "
+            "Try again in a moment."
+        )
+    return response
+
+
+# ── Tool 4 (stretch): find_similar ────────────────────────────────────────────
+
+def find_similar(item: dict) -> list[dict]:
+    """
+    Find other listings with a similar aesthetic to a given item.
+
+    Like search_listings, this one doesn't call the model — it compares
+    listing fields directly, so it's cheap to run and easy to test.
+
+    Args:
+        item: a listing dict — the item to find look-alikes for. It needs
+              style_tags, category, and colors; id is used to leave the item
+              itself out of the results.
+
+    Returns:
+        A list of listing dicts, most similar first, at most
+        config.SEARCH_RESULT_LIMIT of them. Never includes the input item.
+        Similarity is ranked by shared style tags first, then same category,
+        then shared colors.
+        **Returns an empty list when nothing shares anything with the item —
+        an empty list, not None, and not an exception.**
+
+    Each listing dict has the same fields as search_listings returns:
+        id, title, description, category, style_tags (list), size,
+        condition, price (float), colors (list), brand (str or None), platform
+
+    Test it from a terminal:
+        python -c "from tools import find_similar; from utils.data_loader import load_listings; print(find_similar(load_listings()[0]))"
+    """
+    tags = {t.lower() for t in item.get("style_tags") or []}
+    colors = {c.lower() for c in item.get("colors") or []}
+    category = (item.get("category") or "").lower()
+
+    scored = []
+    for listing in load_listings():
+        if listing["id"] == item.get("id"):
+            continue
+        score = (
+            3 * len(tags & {t.lower() for t in listing["style_tags"]})
+            + 2 * (listing["category"].lower() == category)
+            + 1 * len(colors & {c.lower() for c in listing["colors"]})
+        )
+        if score > 0:
+            scored.append((score, listing))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [listing for _, listing in scored[: config.SEARCH_RESULT_LIMIT]]

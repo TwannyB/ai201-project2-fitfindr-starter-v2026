@@ -59,30 +59,30 @@
 
 ### `search_listings`
 
-- **What it does:** It searches the listings file and returns items that match the query given by the user.
-- **Inputs:** `description` (string), `size` (string), and `max_price` (float)<!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:** It returns a list of clothing items, where each item is a listing dict that has an id, title, description, category, style_tags, size, condition, price, colors, brand, and platform.
+- **What it does:** It searches the listings file and returns items that match the query given by the user. As for size matching, sizes match on whole tokens such that M matches S/M but L doesn't match XL. "One Size" listings only match when no size is given or when the user specifies "One Size". 
+- **Inputs:** `description` (string), `size` (string or None), and `max_price` (float or None)<!-- name and type each: `max_price` (float), not "a price" -->
+- **Returns:** It returns a list of clothing items, where each item is a listing dict that has an id, title, description, category, style_tags, size, condition, price, colors, brand, and platform. The list is contains at most 10 items ordered from the best match first(highest score) to items that have a lower match value. 
 - **When it has nothing:**  It returns an empty list.
 
 ### `suggest_outfit`
 
 - **What it does:** It takes in a new clothing item and a group of other clothing items the user already has, and returns groupings of clothing items as outfit ideas.
-- **Inputs:** new_item (dict) and wardrobe(dict)
-- **Returns:** It returns a string that describes a grouping of the new item and items from the input wardrobe that are similar and can make an outfit.
-- **When it has nothing:** It returns general styling advice.
+- **Inputs:** `new_item` (dict) and `wardrobe`(dict)
+- **Returns:** It returns a string that describes a grouping of the new item and items from the input wardrobe that go with it and can make an outfit.
+- **When it has nothing:** It returns general styling advice. This happens when the wardrobe list is empty.
 
 ### `create_fit_card`
 
-- **What it does:** It takes in an outfit and a a new outfit item and returns a caption someone would post.
-- **Inputs:** outfit (string), new_item (dict)
-- **Returns:** It returns a string that someone would post as a caption with the outfit and new item
-- **When it has nothing:** It returns an error string explaining that a caption wasn't successfully created.
+- **What it does:** It takes in an outfit and a new outfit item and returns a caption someone would post.
+- **Inputs:** `outfit` (string), `new_item` (dict)
+- **Returns:** It returns a 2-4 sentence string that someone would post as a caption with the outfit and new item. It mentions the clothing type, color, a style tag, material, or the combination of pieces.
+- **When it has nothing:** It returns an error string explaining that a caption wasn't successfully created.This happens when outfit is empty or only whitespace, and a message is returned without calling the model.
 
 ### ADDITIONAL/Stretch Feature `find_similar`
 
 - **What it does:** It takes in an item and returns listings for similar clothing items that match the aesthetic, or style tags.
-- **Inputs:** item (dict)
-- **Returns:** It returns a list of dicts where each dict is a listing dict that has an id, title, description, category, style_tags, size, condition, price, colors, brand, and platform.
+- **Inputs:** `item` (dict)
+- **Returns:** It returns a list of dicts where each dict is a listing dict that has an id, title, description, category, style_tags, size, condition, price, colors, brand, and platform. The list is ranked by shared style tags, then the same category and shared colors.
 - **When it has nothing:** It returns an empty list.
 
 ---
