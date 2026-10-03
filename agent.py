@@ -13,6 +13,8 @@ Build and test your three tools in `tools.py` first. Then come here.
     python agent.py          runs both example paths below
 """
 
+import re
+
 import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
@@ -38,6 +40,7 @@ def new_session(query: str, wardrobe: dict) -> dict:
     return {
         "query": query,              # what the user typed
         "parsed": {},                # description / size / max_price you pulled out of it
+        "searched": False,           # True once search_listings has run, even if it found nothing
         "search_results": [],        # everything search_listings returned
         "selected_item": None,       # the one you chose — goes into suggest_outfit
         "wardrobe": wardrobe,        # the user's wardrobe
@@ -45,6 +48,106 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
     }
+
+
+# ── query parsing ─────────────────────────────────────────────────────────────
+
+# "under $30", "below 30", "less than $29.99", "up to $50", or a bare "$30".
+_PRICE_RE = re.compile(
+    r"\b(?:under|below|less than|max(?:imum)?|up to)\s+\$?\s*(\d+(?:\.\d+)?)"
+    r"|\$\s*(\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+
+# "size M", "in size 8", "size W30 L30", "size medium", "size one size".
+# Longer alternatives come first so "xl" isn't read as "x" and "xxs" not as "s".
+_SIZE_RE = re.compile(
+    r"\b(?:in\s+)?size\s+("
+    r"one\s+size|extra[\s-]+small|extra[\s-]+large|x-small|x-large"
+    r"|small|medium|large"
+    r"|w\d+(?:\s+l\d+)?|(?:us\s*)?\d+(?:\.\d+)?"
+    r"|xxs|xxl|xs|xl|s|m|l"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_SIZE_WORDS = {
+    "small": "S",
+    "medium": "M",
+    "large": "L",
+    "extra small": "XS",
+    "x-small": "XS",
+    "extra large": "XL",
+    "x-large": "XL",
+    "one size": "One Size",
+}
+
+_FILLER_RE = re.compile(
+    r"\b(?:i'?m\s+)?(?:looking\s+for|searching\s+for|i\s+want|i\s+need"
+    r"|find\s+me|show\s+me)\b",
+    re.IGNORECASE,
+)
+
+
+def _parse_query(query: str) -> dict:
+    """
+    Pull a description, a size, and a max_price out of a plain-language query.
+
+    Regex, not the model: the same query always parses the same way, and it
+    costs no calls. Whatever isn't a price or a size becomes the description.
+    """
+    max_price = None
+    price_match = _PRICE_RE.search(query)
+    if price_match:
+        max_price = float(price_match.group(1) or price_match.group(2))
+        query = query[: price_match.start()] + " " + query[price_match.end():]
+
+    size = None
+    size_match = _SIZE_RE.search(query)
+    if size_match:
+        raw = re.sub(r"[\s-]+", " ", size_match.group(1).lower())
+        size = _SIZE_WORDS.get(raw) or _SIZE_WORDS.get(raw.replace(" ", "-")) or raw.upper()
+        query = query[: size_match.start()] + " " + query[size_match.end():]
+
+    description = _FILLER_RE.sub(" ", query)
+    description = re.sub(r"[,.!?;:]", " ", description)
+    description = " ".join(description.split())
+
+    return {"description": description, "size": size, "max_price": max_price}
+
+
+def _no_results_message(parsed: dict) -> str:
+    """Say what the user could change, based on what was actually searched for."""
+    description = parsed["description"]
+    size = parsed["size"]
+    max_price = parsed["max_price"]
+
+    if not description:
+        return (
+            "I couldn't tell what you're looking for. Describe the item, e.g. "
+            "'vintage graphic tee under $30, size M'."
+        )
+
+    searched = f'No listings matched "{description}"'
+    if size:
+        searched += f" in size {size}"
+    if max_price is not None:
+        searched += f" under ${max_price:g}"
+
+    suggestions = []
+    if max_price is not None:
+        suggestions.append(f"raising or removing the ${max_price:g} price limit")
+    if size:
+        suggestions.append("dropping the size")
+    suggestions.append(
+        "using fewer or broader words (just the item type, like \"jacket\" or \"jeans\")"
+    )
+
+    if len(suggestions) == 1:
+        advice = suggestions[0]
+    else:
+        advice = ", ".join(suggestions[:-1]) + ", or " + suggestions[-1]
+    return f"{searched}. Try {advice}."
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
@@ -107,9 +210,44 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     """
     session = new_session(query, wardrobe)
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
-    return session
+    count = 0
+
+    # Each pass looks at what the session holds so far and picks the one next
+    # step. The run ends when the fit card is written, or early at the branch.
+    while True:
+        count += 1
+        trace.check_iterations(count)
+
+        if not session["parsed"]:
+            session["parsed"] = _parse_query(query)
+
+        elif not session["searched"]:
+            parsed = session["parsed"]
+            session["search_results"] = search_listings(
+                parsed["description"], parsed["size"], parsed["max_price"]
+            )
+            session["searched"] = True
+
+        elif not session["search_results"]:
+            # The branch: nothing to style, so stop before suggest_outfit.
+            session["error"] = _no_results_message(session["parsed"])
+            return session
+
+        elif session["selected_item"] is None:
+            session["selected_item"] = session["search_results"][0]
+
+        elif session["outfit_suggestion"] is None:
+            session["outfit_suggestion"] = suggest_outfit(
+                session["selected_item"], session["wardrobe"]
+            )
+
+        elif session["fit_card"] is None:
+            session["fit_card"] = create_fit_card(
+                session["outfit_suggestion"], session["selected_item"]
+            )
+
+        else:
+            return session
 
 
 # ── running it directly ───────────────────────────────────────────────────────

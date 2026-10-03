@@ -100,13 +100,15 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If search_listings returns an empty list, put a message in session["error"] that says which filters to loosen (price, size, or wording) and return the session without calling suggest_outfit. Otherwise take the first result as selected_item and go on to suggest_outfit, then create_fit_card.
 
 **Where it lives:** `agent.py::run_agent`
 
 **How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+Regex is used to pull out a price pattern wherever "under", "below", "up to" or "$" appear, a size wherever "size" appears, and whatever's left becomes description. 
 
 **What moves through the session:** <!-- which fields, in what order -->
+query -> parsed (description, size, max_price) -> searched + search_results -> selected_item -> outfit_suggestion -> fit_card, or error if the run stops at the branch.
 
 ---
 
@@ -189,15 +191,15 @@ lst_012 Oversized Crewneck Sweatshirt — Vintage Navy
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked for Claude to implement teh four tools built from my Tool Inventory and the tools.py docustrings, with a plan before any code was written.
+- *What came back:* It returned a plan that pointed out my README disagreed with tools.py in two places. create_fit_card's outfit input as list[dict], but agent.py passes the string from suggest_outfit. I'd said suggest_outfit returns an error string on an empty wardrobe, but the docstring says it should give general styling advice. It also asked how "One Size" listings should match.
+- *What I changed:* I rewrote the Tool Inventory to match the code: string input, styling advice for an empty wardrobe, and the whole-token size rule. I decided "One Size" listings only match when no size is given, so a request for a small top doesn't return bags and hats. The code was built according to that specification.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked for a plan for run_agent before implementation.
+- *What came back:*Claude gave two options. The first was a step loop that reads teh session each pass to pick the next tool. The other was a straight-line version with an if empty: return. It also asked whether to add the unit 4 trace and error handling now, and whether "size medium" should become M.
+- *What I changed:* I chose the step loop so the branch is a real decision based on state. I held back the additions Claude would make for unit 4 and asked for size words to be converted, then checked the result by comparing session["selected)_item"] to the object that reached suggest_outfit. 
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
