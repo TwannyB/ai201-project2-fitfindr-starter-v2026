@@ -44,7 +44,7 @@ The system should be able to handle failed requests, and 5 of 5 is a valid goal 
 
 ## 3. Something about state
 
-In 5 of 5 tries, the listing dict that is returned from the search in the first tool matches the listing dict that is used as input for the suggest_outfit tool. 
+In 5 of 5 tries, the first listing dict that is returned from the search in the first tool matches the listing dict that is used as input for the suggest_outfit tool. 
 <!-- YOU WRITE THIS ONE.
 
      How would you know that the item your search found is the same item the
@@ -89,7 +89,7 @@ This target tests another important part of the system, which is the ability to 
 
 ## 5. Your choice
 
-For 5 of 5 tries, the suggest_outfit tool returns grouping in which each listing item in the grouping list shares the same style tag value as the rest of the items in the grouping.
+For 5 of 5 tries, the suggest_outfit tool returns a grouping in which each listing item in the grouping list shares the same style tag value as the rest of the items in the grouping.
 <!-- YOU WRITE THIS ONE TOO.
 
      Pick something you actually care about getting right. Speed, the empty
