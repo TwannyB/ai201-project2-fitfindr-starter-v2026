@@ -69,20 +69,32 @@ mcp = FastMCP("fitfindr", log_level="WARNING")
 
 # ── TODO: uncomment and fill this in ──────────────────────────────────────────
 #
-# @mcp.tool()
-# def search_listings(
-#     description: str,
-#     size: str | None = None,
-#     max_price: float | None = None,
-# ) -> list[dict]:
-#     """
+@mcp.tool()
+def search_listings(
+    description: str,
+    size: str | None = None,
+    max_price: float | None = None,
+) -> list[dict]:
+    """
+
+    This tool searches the listings file and returns the top clothing listing items according to
+    how well they match the user's query in the form of a list of dicts.
+    
+    It takes in a string `description`, string or None `size`, and a float `max_price`, which is 
+    in USD. It returns a list of listing dicts that each have an id, title, description, category,
+    style_tags, condition, price, colors, brand and platform. When it has nothing or gets a blank 
+    query(`description`), it returns an empty list.
+
 #     <-- YOUR DESCRIPTION GOES HERE.
 #
 #         One or two sentences. What does this tool do, what does it need, and
 #         what does it give back when it finds nothing? Written for a reader
 #         who cannot see the code.
+
+       
+
 #     """
-#     return _search_listings_impl(description, size, max_price)
+    return _search_listings_impl(description, size, max_price)
 #
 # ──────────────────────────────────────────────────────────────────────────────
 #

@@ -19,6 +19,7 @@ import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
 from generate import ModelUnavailable
+import mcp_client
 
 
 # ── session state ─────────────────────────────────────────────────────────────
@@ -268,7 +269,7 @@ if __name__ == "__main__":
     from utils.data_loader import get_example_wardrobe
 
     print("=== A query the data can match ===")
-    _show(run_agent(
+    _show(mcp_client.call_tool(
         query="looking for a vintage graphic tee under $30",
         wardrobe=get_example_wardrobe(),
     ))
