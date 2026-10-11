@@ -181,7 +181,6 @@ lst_012 Oversized Crewneck Sweatshirt — Vintage Navy
 ---
 
 ## How I Used AI
-
 <!-- Two specific moments. What you asked, what came back, what you changed.
 
      "I used Claude to help me code" is not enough.
@@ -191,15 +190,32 @@ lst_012 Oversized Crewneck Sweatshirt — Vintage Navy
 
 **Moment 1**
 
-- *What I asked for:* I asked for Claude to implement the four tools built from my Tool Inventory and the tools.py docustrings, with a plan before any code was written.
+- *What I asked for:* I asked for Claude to implement the four tools built from my Tool Inventory and the tools.py docstrings, with a plan before any code was written.
 - *What came back:* It returned a plan that pointed out my README disagreed with tools.py in two places. create_fit_card's outfit input as list[dict], but agent.py passes the string from suggest_outfit. I'd said suggest_outfit returns an error string on an empty wardrobe, but the docstring says it should give general styling advice. It also asked how "One Size" listings should match.
 - *What I changed:* I rewrote the Tool Inventory to match the code: string input, styling advice for an empty wardrobe, and the whole-token size rule. I decided "One Size" listings only match when no size is given, so a request for a small top doesn't return bags and hats. The code was built according to that specification.
 
 **Moment 2**
 
 - *What I asked for:* I asked for a plan for run_agent before implementation.
-- *What came back:*Claude gave two options. The first was a step loop that reads teh session each pass to pick the next tool. The other was a straight-line version with an if empty: return. It also asked whether to add the unit 4 trace and error handling now, and whether "size medium" should become M.
-- *What I changed:* I chose the step loop so the branch is a real decision based on state. I held back the additions Claude would make for unit 4 and asked for size words to be converted, then checked the result by comparing session["selected)_item"] to the object that reached suggest_outfit. 
+- *What came back:* Claude gave two options. The first was a step loop that reads the session each pass to pick the next tool. The other was a straight-line version with an if empty: return. It also asked whether to add the unit 4 trace and error handling now, and whether "size medium" should become M. After I chose, Claude implemented the loop, the regex query parser and the no-results message.
+- *What I changed:* I chose the step loop so the branch is a real decision based on state. I held back the additions Claude would make for unit 4 and asked for size words to be converted, then checked the result by comparing session["selected_item"] to the object that reached suggest_outfit. 
+
+**Moment 3**
+- *What I asked for:* I asked for Claude to look at my "before" criterion table grading and see if my grading was accurate according to the criteria I set up in unit 3. I told it that I suspected that my fifth criterion was too harsh and I wanted to know if it really did fail it (the criterion specifying that all outfit pieces must share a style tag).
+- *What came back:* Claude suggested that I actually missed criterion 5 completely like I suspected, and pointed out that my criterion caused good outfits to "fail". It confirmed that my criterion was indeed broken and suggested fixes to improve it. It also pointed out that for criterion 4, I didn't test it correctly since I specified that the fits must be accurate for 5 different selected items, although the scenarios.py only tests with one item. 
+- *What I changed:*
+I improved criterion 5 in the criteria.md file and made the necessary changes to scenarios.py to add enough outfits so that criterion 4 could be properly assessed.
+
+**Moment 4**
+- *What I asked for:* I asked Claude if it made sense for me to list a specific mechanism responsible for criterion 5's failure although the problem was the criterion itself.
+- *What came back:* Claude explained that although the criterion was flawed, the reason the system didn't pass the criterion specifically had to do with the model building complementary outfits, which don't always have pieces with the same style tags.
+- *What I changed:* 
+I used the advice to properly document why Criterion 5 was missed in the Diagnoses section, along with the responsible mechanism and how I revised the criterion as well.
+
+**Moment 5**
+- *What I asked for:* I asked Claude to fill in the run log tables and fix the wording and evidence in my unit 4 sections.
+- *What came back:* Claude wrote parts of my unit 4 README: the Run Log notes and tables, the "Real output" block (copied from my results files), and wording and evidence fixes in The Improvement and What's Still Broken. 
+- *What I changed:* The before-table grading, the criterion 5 revision, the diagnoses, and the choice of fix are mine. Claude proposed the criterion 4 scoring rule and scored the after table; I checked its counts against the run logs.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
@@ -332,7 +348,7 @@ Vibe: Elevated urban minimal with a vintage edge.
 
 **Diagnoses**
 
-Criterion 5 Diagnosis: The suggest_outfit criterion didn't pass for any of the run. None of the listed pieces when searched in wardrobe_schema.json contained the same style tags as the originally searched item. The failure happened at the model's output since the text suggest_outfit got back from the model was what failed the check. The failed step was suggest_outfit and the failed mechanism was that nothing in the prompt specifies that returned outfit suggestion's pieces should share tags. In all 5 tries, Outfit 1 includes the Black crossbody bag (minimal, accessories, everyday), which shares no tag with Graphic Tee (graphic tee, vintage, grunge, streetwear, band tee). Outfit 2 uses khaki trousers and brown leather belt, which don't share any either. The outfits themselves are reasonable, so the criterion was checking the wrong property. I revised it in criteria rather than forcing tag matching into the prompt, which could make worse outfits or limit the possible outfits returned. 
+Criterion 5 Diagnosis: The suggest_outfit criterion didn't pass for any of the runs. None of the listed pieces when searched in wardrobe_schema.json contained the same style tags as the originally searched item. The failure happened at the model's output since the text suggest_outfit got back from the model was what failed the check. The failed step was suggest_outfit and the failed mechanism was that nothing in the prompt specifies that returned outfit suggestion's pieces should share tags. In all 5 tries, Outfit 1 includes the Black crossbody bag (minimal, accessories, everyday), which shares no tag with Graphic Tee (graphic tee, vintage, grunge, streetwear, band tee). Outfit 2 uses khaki trousers and brown leather belt, which don't share any either. The outfits themselves are reasonable, so the criterion was checking the wrong property. I revised it in criteria rather than forcing tag matching into the prompt, which could make worse outfits or limit the possible outfits returned. 
 
 
 ---
@@ -389,7 +405,7 @@ behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
 
-The agent.py file now uses mcp_client.call_tool() during a session to use the search_listings() function rather than calling it directly. Everything behaved the same afterwards. 
+The agent.py file now uses mcp_client.call_tool() during a session to use the search_listings() function rather than calling it directly. Everything behaved the same afterwards.
 
 
 
