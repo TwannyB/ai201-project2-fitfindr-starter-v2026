@@ -306,31 +306,6 @@ Vibe: Elevated urban minimal with a vintage edge.
 
 ## Verdicts and Diagnoses
 
-Criterion 1: MET
-
-In the output, I saw the traces for all 3 tools, so I know that all three tools were completed.
-
-Criterion 2: MET
-
-The trace stopped at the first tool, so I know that the system correctly stops when an impossible query is given.
-
-Criterion 3: MET
-
-The search_listings shows that the out item is the the same as the `selected_item`, and then the following selected_item trace shows that selected_item is its input, so the session picked the same item.
-
-Criterion 4: MET
-
-The fit card successfully mentions a detail about the selected item, with the example run pasted above mentioning the jacket's navy and white sleeve stripes. 
-
-Criterion 5: MISSED 
-
-When searching the example wardrobe for the listed outfit pieces in the suggested outfit string, the pieces don't share any of the same style tags the original searched item contained.
-
-
-
-
-
-
 <!-- MET or MISSED per criterion against LAST UNIT's target, plus a sentence on
      how you decided.
 
@@ -349,11 +324,11 @@ When searching the example wardrobe for the listed outfit pieces in the suggeste
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | Matching query completes all 3 tool calls | 4/5 | MET (5/5) | In the output, I saw the traces for all 3 tools, so I know that all three tools were completed. |
+| 2 | Impossible query stops early | 5/5 | MET (5/5) | The trace stopped at the first tool, so I know that the system correctly stops when an impossible query is given. |
+| 3 | Matching search item reaches suggest outfit | 5/5 | MET (5/5) | The search_listings trace shows that the out item is the same as the `selected_item`, and then the following suggest_outfit trace shows that selected_item is its input, so the session picked the same item. |
+| 4 | Fit cards are accurate | 4/5 | MET (5/5) | The fit card successfully mentions a detail about the selected item, with the example run pasted above mentioning the jacket's navy and white sleeve stripes. |
+| 5 | Suggested outfit pieces match | 5/5 | MISSED (0/5) | When searching the example wardrobe for the listed outfit pieces in the suggested outfit string, the pieces don't share any of the same style tags the original searched item contained. |
 
 **Diagnoses**
 
@@ -414,32 +389,41 @@ behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
 
+The agent.py file now uses mcp_client.call_tool() during a session to use the search_listings() function rather than calling it directly. Everything behaved the same afterwards. 
+
 
 
 ---
 
 ## The Improvement
 
+A small problem I noticed was that the create_fit_card function seemed to output descriptions that would sometimes fabricate additional details about wardrobe items. For example, when making an outfit with the vintage t shirt, it paired it with a denim jacket and described the jacket as "oversized" when its wardrobe notes describe it as "slightly cropped". The two descriptions are contradictory and show that the model added on untrue wording describing the jacket. This came from `results/run_2026-10-10_1601_before.md` (the `vintage graphic tee under $30` scenario, Try 1), where the fit card read: "…I threw it on with baggy dark-wash denim, combat boots, and an oversized black denim jacket for peak 90s grunge." The `results/run_2026-10-10_1818_before.md` run had similar additions, like "heavy black denim jacket", "heavy grey crewneck sweatshirt", and "chunky combat boots", none of which appear in the wardrobe data.
 <!-- What you changed, why your diagnosis pointed at it, and the after-run in
      the same table format. One change, measured properly.
 
      `python run_eval.py --label after` -->
 
 **What I changed:**
+I changed the system prompt behind the create_fit_card function to instruct the model to only describe wardrobe pieces with wording used in the actual outfit text, and to describe the thrifted item using its listing details. 
 
 **Which failure it was meant to fix:**
+The change was meant to fix a criterion 4 failure, although criterion 4 still met its target overall. The problem showed up on individual fit cards rather than the verdict, since the model generated fit cards with fabricated details about wardrobe pieces.
 
 ### Run Log — After
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1.  Matching query completes all 3 tool calls | 4/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2.  Impossible query stops early | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3.  Matching search item reaches suggest outfit | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4.  Fit cards are accurate | 4/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5.  Suggested outfit pieces match | 5/5 | FAIL | FAIL | FAIL | FAIL | FAIL | MISSED (0/5) |
+
+All rows are scored from `results/run_2026-10-11_0116_after~.md`, using the same scenarios and rules as Run Log — Before. Criteria 1, 3 and 5 use the five tries of `vintage graphic tee under $30`; criterion 2 uses the five tries of `designer ballgown size XXS under $5`. For criterion 4, Try N is the Try 1 fit card of item N (track jacket, silk slip dress, platform sneakers, graphic tee, denim jacket). Criterion 5 is scored against the original wording; against the revised criterion in `criteria.md`, the same five tries pass 5/5.
 
 **Did it help, and how do I know:**
+
+It removed the invented wardrobe details since before 4 of 25 cards had invented details and 0 of 25 had invented details after, but also introduced a new problem: 17 of the 35 generated cards now show prices like "$24.0" and read more like listings when initially 0 of 35 did, which was the opposite of what a fit card was supposed to achieve. This is one run on each side, and all 4 "before" cases were on the silk slip dress, so some of the drop could be chance.
 
 <!-- If it made things worse, say that. Honestly reported, that earns full
      credit and is more interesting than one that worked. -->
@@ -449,6 +433,10 @@ full. -->
 ---
 
 ## What's Still Broken
+Criterion 5 is still missed against the original wording. I didn't change the tool because I realized that my wording in the original criterion would encourage the model to possibly make worse outfits if I enforced the wording into the prompt to generate outfits where all the pieces have matching tags. I revised the criterion in `criteria.md` instead, and the revised version passes 5/5 in both runs.
+
+
+What is still broken is the function that creates fit cards, since the fix I tried to make changed the fit cards such that they seem more like listings rather than captions ("$24.0" instead of "$24"). To fix it, I'd have to format the price as $24 in _describe_item, soften "using its listing details", then run the eval again and recount. I stopped after one change because that's the only way to tell which change caused which result: I know the prompt change caused both the improvement and the regression because it was the only thing that changed between the two runs. Another fix would need its own before and after run.
 
 <!-- For each criterion still missed: what you'd do, and why you stopped where
      you did. "I ran out of time" is fine if it's true. Pretending nothing is

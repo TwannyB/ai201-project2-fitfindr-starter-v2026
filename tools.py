@@ -303,7 +303,9 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
 
     system = (
         "You write short social media captions for thrifted outfits. They "
-        "sound like a real person posting their find, not a product listing."
+        "sound like a real person posting their find, not a product listing. "
+        "Describe the user's wardrobe pieces only with words that appear in the outfit text, and don't add fit, size, material or color details about them. "
+        "Describe the thrifted item itself using its listing details."
     )
     prompt = (
         "Write a caption for this thrift find and the outfit built around it.\n\n"

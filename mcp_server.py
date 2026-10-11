@@ -88,6 +88,8 @@ def search_listings(
     query(`description`), it returns an empty list.
     """
     return _search_listings_impl(description, size, max_price)
+
+
 #
 # ──────────────────────────────────────────────────────────────────────────────
 #
