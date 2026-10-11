@@ -90,6 +90,8 @@ This target tests another important part of the system, which is the ability to 
 ## 5. Your choice
 
 For 5 of 5 tries, the suggest_outfit tool returns a grouping in which each listing item in the grouping list shares the same style tag value as the rest of the items in the grouping.
+
+
 <!-- YOU WRITE THIS ONE TOO.
 
      Pick something you actually care about getting right. Speed, the empty
@@ -101,6 +103,12 @@ For 5 of 5 tries, the suggest_outfit tool returns a grouping in which each listi
 
 **Why this target:**
 This tests the accuracy of the suggest_outfit tool since the system is supposed to group together items that are similar in some way rather than the groupings being random. I chose 5 of 5 as the goal because this doesn't rely on model generation, meaning it should be consistent.
+
+**Revised in unit 4:** on a matching query with the example wardrobe, for 5 of 5 tries, every piece described in each outfit exists in the user's wardrobe, and each outfit includes the new item.
+
+**Why revised:**
+
+I inferred an incorrect output of suggest_outfit(a single group of listing items) when the actual output is a string paragraph of text naming wardrobe pieces instead of listings. I also said in my explanation that the function doesn't rely on model generation, but suggest_outfit does actually call the model. Thirdly, real outfits can mix style tags, or categories, epecially if they are contrast outfits. The previous criterion fails groupings of clothes that are actually good outfits. My previous criterion tried to make fashion, something that's subjective, objective by measuring it with style tags. The new criterion trusts the model to handle fashion choices and instead makes sure that the items listed in the outfit include the searched item and actual clothing pieces in the wardrobe rather than fabricating. I want to keep the 5/5 goal because the prompt tells the model to use only listed pieces and name them exactly, and an invented piece means the user is told to wear something they don't own, which shouldn't ever happen.
 
 
 

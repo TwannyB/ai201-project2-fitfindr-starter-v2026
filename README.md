@@ -191,7 +191,7 @@ lst_012 Oversized Crewneck Sweatshirt — Vintage Navy
 
 **Moment 1**
 
-- *What I asked for:* I asked for Claude to implement teh four tools built from my Tool Inventory and the tools.py docustrings, with a plan before any code was written.
+- *What I asked for:* I asked for Claude to implement the four tools built from my Tool Inventory and the tools.py docustrings, with a plan before any code was written.
 - *What came back:* It returned a plan that pointed out my README disagreed with tools.py in two places. create_fit_card's outfit input as list[dict], but agent.py passes the string from suggest_outfit. I'd said suggest_outfit returns an error string on an empty wardrobe, but the docstring says it should give general styling advice. It also asked how "One Size" listings should match.
 - *What I changed:* I rewrote the Tool Inventory to match the code: string input, styling advice for an empty wardrobe, and the whole-token size rule. I decided "One Size" listings only match when no size is given, so a request for a small top doesn't return bags and hats. The code was built according to that specification.
 
@@ -221,17 +221,85 @@ lst_012 Oversized Crewneck Sweatshirt — Vintage Navy
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1.  Matching query completes all 3 tool calls | 4/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2.  Impossible query stops early | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3.  Matching search item reaches suggest outfit | 5/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4.  Fit cards are accurate | 4/5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5.  Suggested outfit pieces match | 5/5 | FAIL | FAIL | FAIL | FAIL | FAIL | MISSED (0/5) |
+
+All rows are scored from `results/run_2026-10-10_1818_before.md`. Criteria 1, 3 and 5 use the five tries of the `vintage graphic tee under $30` scenario; criterion 2 uses the five tries of `designer ballgown size XXS under $5`. For criterion 4, Try N is the Try 1 fit card of item N (track jacket, silk slip dress, platform sneakers, graphic tee, denim jacket), a rule chosen before reading the cards. Criterion 5 is scored against the original wording of the criterion; against the revised criterion in `criteria.md`, the same five tries pass 5/5.
 
 **Real output from one try**, pasted as text, naming the file and function
 that produced it:
 
+All output below is copied from `results/run_2026-10-10_1818_before.md`, written by `run_eval.py::main`, which calls `agent.py::run_agent` once per try.
+
+**Criterion 1: matching query completes** (`vintage graphic tee under $30`, Try 1). Fit card produced by `tools.py::create_fit_card`, called from `agent.py::run_agent`; trace lines recorded by `trace.py::step`.
+
+```
+- stopped early: no
+- selected_item: Graphic Tee — 2003 Tour Bootleg Style ($24.0, depop)
+- search_results: 10
+
+Fit card:
+Found this ridiculously soft 2003 tour bootleg tee on depop for $24 and haven't taken it off since. It's got that perfect faded graphic and boxy fit, so I’ve been living in it layered over a white ribbed tank with wide-leg khaki trousers and chunky white sneakers. Gives off the best effortless streetwear energy without even trying.
+
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey, Y2K Baby Tee — Butterfly Print … +7 more
+[2] suggest_outfit
+      in:  dict with keys: selected_item, wardrobe
+      out: Outfit 1: Effortless Grunge Pair the Graphic Tee with the Baggy straight-leg jeans, dark wash. Tuck in the tee…
+[3] create_fit_card
+      in:  dict with keys: outfit_suggestion, selected_item
+      out: Found this ridiculously soft 2003 tour bootleg tee on depop for $24 and haven't taken it off since. It's got t…
 ```
 
+**Criterion 2: impossible query stops early** (`designer ballgown size XXS under $5`, Try 1). Error message produced by `agent.py::_no_results_message`, set at the branch in `agent.py::run_agent`.
+
+```
+- stopped early: yes — No listings matched "designer ballgown" in size XXS under $5. Try raising or removing the $5 price limit, dropping the size, or using fewer or broader words (just the item type, like "jacket" or "jeans").
+- selected_item: (none)
+- search_results: 0
+
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+```
+
+**Criterion 3: search item reaches suggest_outfit** (`vintage graphic tee under $30`, Try 1). Search results from `mcp_server.py::search_listings` (wrapping `tools.py::search_listings`); `selected_item` set in `agent.py::run_agent`.
+
+```
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: 10 items: Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey, Y2K Baby Tee — Butterfly Print … +7 more
+
+- selected_item: Graphic Tee — 2003 Tour Bootleg Style ($24.0, depop)
+
+[2] suggest_outfit
+      in:  dict with keys: selected_item, wardrobe
+      out: Outfit 1: Effortless Grunge Pair the Graphic Tee with the Baggy straight-leg jeans, dark wash. Tuck in the tee…
+```
+
+**Criterion 4: fit cards are accurate** (`90s track jacket in size M`, Try 1, the first of the five items). Fit card produced by `tools.py::create_fit_card`.
+
+```
+- selected_item: 90s Track Jacket — Navy/White Stripe ($45.0, poshmark)
+
+Fit card:
+Found this vintage Champion 90s track jacket on Poshmark for just $45, and it’s basically lived on my shoulders ever since. Today I’m leaning into skater-off-duty energy by throwing it over a white ribbed tank with baggy straight-leg jeans and chunky white sneakers. The navy and white sleeve stripes just pull the whole effortless streetwear look together.
+```
+
+**Criterion 5: suggested outfit pieces match** (`vintage graphic tee under $30`, Try 1). Outfit suggestion produced by `tools.py::suggest_outfit`.
+
+```
+Outfit 1: Effortless Grunge
+Pair the Graphic Tee with the Baggy straight-leg jeans, dark wash. Tuck in the tee and add the Black combat boots and Black crossbody bag. 
+Vibe: 90s skater streetwear, perfectly worn-in and casual.
+
+Outfit 2: Layered Streetwear
+Wear the Graphic Tee over the White ribbed tank top, paired with the Wide-leg khaki trousers. Cinch the waist with the Brown leather belt, and finish with the Chunky white sneakers and Black crossbody bag.
+Vibe: Elevated urban minimal with a vintage edge.
 ```
 
 ---
@@ -270,25 +338,48 @@ that produced it:
 
 ## Loop Trace
 
-<!-- One full run, printed step by step, with the MCP call visible in it.
-
-     `python app.py ask '...' --trace` once you've added the trace.step()
-     calls in Milestone 2.
-
-     Worth pasting BOTH the happy path and the empty-search path. The empty
-     one should be visibly shorter, because it stops. If your two traces are
-     the same length, your branch isn't working — and this is the fastest way
-     anyone will ever find that out. -->
-
 **Happy path**
 
 ```
+python app.py ask 'jean jacket size m under $60' --trace
+
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: 2 items: 90s Track Jacket — Navy/White Stripe, Shacket — Olive Canvas
+[2] suggest_outfit
+      in:  dict with keys: selected_item, wardrobe
+      out: Outfit 1: Retro Streetwear Pair the 90s Track Jacket with the white ribbed tank top and baggy straight-leg jea…
+[3] create_fit_card
+      in:  dict with keys: outfit_suggestion, selected_item
+      out: Found this vintage Champion track jacket for $45 on Poshmark and I’m obsessed with the navy and white sleeve s…
+
+  Found:    90s Track Jacket — Navy/White Stripe — $45.0 on poshmark
+
+  Outfit:   Outfit 1: Retro Streetwear
+Pair the 90s Track Jacket with the white ribbed tank top and baggy straight-leg jeans, dark wash. Finish withthe chunky white sneakers and black crossbody bag. 
+Vibe: Effortless 90s skater-off-duty.
+
+Outfit 2: High-Low Sporty
+Layer the 90s Track Jacket over the white ribbed tank top, and pair with the wide-leg khaki trousers, securedwith the brown leather belt. Step into the chunky white sneakers and carry the black crossbody bag. 
+Vibe: Elevated athletic casual with a vintage prep twist.
+
+  Fit card: Found this vintage Champion track jacket for $45 on Poshmark and I’m obsessed with the navy and white sleeve stripes. I threw it on over a ribbed tank with baggy dark wash jeans and chunky sneakers for that effortless skater-off-duty vibe. Honestly the easiest throw-on-and-go piece for chilly mornings.
+
+0 model calls this session, 2 served from cache
 
 ```
 
 **Empty search**
 
 ```
+python app.py ask 'Hyundai Sonata' --trace
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: [] (empty)
+
+  No listings matched "Hyundai Sonata". Try using fewer or broader words (just the item type, like "jacket" or "jeans").
+
+0 model calls this session
 
 ```
 

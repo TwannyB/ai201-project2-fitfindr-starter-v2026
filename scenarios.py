@@ -35,6 +35,39 @@ SCENARIOS = [
         "wardrobe": "empty",
         "criterion": None,
     },
+    {
+        "name": "fit cards are accurate",
+        "query": "90s track jacket in size M",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        "name": "fit cards are accurate",
+        "query": "silk slip dress in midi length under $40",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        "name": "fit cards are accurate",
+        "query": "platform sneakers size 8",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        "name": "fit cards are accurate",
+        "query": "vintage graphic tee under $30",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        "name": "fit cards are accurate",
+        "query": "denim jacket under $50",
+        "wardrobe": "example",
+        "criterion": 4,
+    }
+        
+        
+        
     # TODO: add what your criteria 3, 4 and 5 need.
     #
     # Set "criterion" to the number in criteria.md that the scenario tests.

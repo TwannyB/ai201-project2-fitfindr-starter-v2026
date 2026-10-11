@@ -46,7 +46,7 @@ def step(name: str, inputs=None, returned=None, note: str = "") -> None:
         name:     what happened — usually a tool name.
         inputs:   what went in. Anything printable.
         returned: what came back. Shortened automatically, so passing a long
-                  list of listings is fine.
+                list of listings is fine.
         note:     an optional word on why, e.g. "branch: empty, stopping".
     """
     global _step_number

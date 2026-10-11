@@ -77,23 +77,16 @@ def search_listings(
 ) -> list[dict]:
     """
 
-    This tool searches the listings file and returns the top clothing listing items according to
-    how well they match the user's query in the form of a list of dicts.
+    This tool searches the listings file and returns the top 10 clothing listing items according to
+    how well they match the user's query in the form of a list of dicts. The tool's size rule is that "L" won't
+    match "XL", "One Size" only appears when no size is given or when the user specifies "One Size" as the size,
+    and "M" finds "S/M".
     
-    It takes in a string `description`, string or None `size`, and a float `max_price`, which is 
+    It takes in a string `description`, string or None `size`, and a float or None(meaning no limit) `max_price`, which is 
     in USD. It returns a list of listing dicts that each have an id, title, description, category,
-    style_tags, condition, price, colors, brand and platform. When it has nothing or gets a blank 
+    style_tags, size, condition, price, colors, brand and platform. When it has nothing or gets a blank 
     query(`description`), it returns an empty list.
-
-#     <-- YOUR DESCRIPTION GOES HERE.
-#
-#         One or two sentences. What does this tool do, what does it need, and
-#         what does it give back when it finds nothing? Written for a reader
-#         who cannot see the code.
-
-       
-
-#     """
+    """
     return _search_listings_impl(description, size, max_price)
 #
 # ──────────────────────────────────────────────────────────────────────────────
