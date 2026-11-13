@@ -497,3 +497,14 @@ What is still broken is the function that creates fit cards, since the fix I tri
 ---
 
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
+
+
+## Capstone 
+
+
+## The Shape
+For the Unit 9 capstone extension, I'm adding persistent personal wardrobes that allow the agent to retrieve saved clothing and create outfits grounded in the user's personal wardrobe.
+
+## What's Out of Scope
+For this extension, I’m not adding photo recognition; users will enter clothing details manually. I’m not adding accounts or authentication; I’ll use one demo user’s wardrobe. I’m also not adding weather integration or virtual try-on. I’m focusing on persistent wardrobe storage, the new `get_wardrobe` tool, and outfit recommendations grounded in saved items.
+
