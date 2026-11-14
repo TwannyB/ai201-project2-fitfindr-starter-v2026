@@ -508,3 +508,8 @@ For the Unit 9 capstone extension, I'm adding persistent personal wardrobes that
 ## What's Out of Scope
 For this extension, I’m not adding photo recognition; users will enter clothing details manually. I’m not adding accounts or authentication; I’ll use one demo user’s wardrobe. I’m also not adding weather integration or virtual try-on. I’m focusing on persistent wardrobe storage, the new `get_wardrobe` tool, and outfit recommendations grounded in saved items.
 
+## Design Decisions
+- **Wardrobe items are matched by `id`, not `name`.** Every saved item has an ID in the form `w_NNN` (e.g. `w_011`). IDs are never reused: the wardrobe file stores a `next_id` counter, and removing an item doesn't lower it, so an old outfit or eval result that mentions an ID can't end up pointing at a different piece. Outfit suggestions will reference items by this ID, and the grounding check will look for `w_NNN` IDs in the model's output.
+- **An empty `style_tags` list is allowed; an empty `colors` list is not.** Style tags are optional descriptors, but colors are what outfit matching relies on, so every item needs at least one.
+- **The saved wardrobe lives in `data/wardrobe.json`, which is not committed.** When the file is missing, `load_wardrobe()` recreates it from the example wardrobe, so deleting it resets the demo. Evals keep using the fixed example wardrobe so before/after runs stay comparable.
+

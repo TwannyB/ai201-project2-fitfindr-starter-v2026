@@ -10,6 +10,7 @@ from typing import Optional
 
 # Resolve the path to the data directory relative to this file
 _DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
+# this means one directory up from the current file's location, and then into the "data" directory.
 
 
 def load_listings() -> list[dict]:
