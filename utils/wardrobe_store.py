@@ -57,6 +57,10 @@ def validate_item(item: dict) -> list[str]:
         if schema_field not in item:
             errors.append(f'Item is missing required field: {schema_field}')
 
+    for field in item:
+        if field not in schema:
+            errors.append(f'Item has unknown field "{field}". Allowed fields: {", ".join(schema)}.')
+
     for field, value in item.items():
         if field == "id" and not isinstance(value, str):
             errors.append('Item field "id" must be a string.')
@@ -106,6 +110,8 @@ def normalize_item(item: dict) -> dict:
         if field in normalized_item and isinstance(normalized_item[field], list):
             # Only clean up strings; leave anything else as-is so validate_item can reject it
             normalized_item[field] = [tag.strip().lower() if isinstance(tag, str) else tag for tag in normalized_item[field]]
+            # Drop blank entries, e.g. from "red, ,blue" or an empty answer
+            normalized_item[field] = [tag for tag in normalized_item[field] if tag != ""]
             # Remove duplicates while preserving order
             normalized_item[field] = list(dict.fromkeys(normalized_item[field]))
 
@@ -160,21 +166,64 @@ def add_item(fields: dict) -> tuple[dict | None, list[str]]:
 
     return normalized_item, []
 
-def remove_item(item_id: str) -> bool:
+def get_item(item_id: str) -> dict | None:
+    """Return the saved item with this ID, or None if there isn't one."""
+    for item in load_wardrobe()["items"]:
+        if item["id"] == item_id:
+            return item
+    return None
+
+def update_item(item_id: str, changes: dict) -> tuple[dict | None, list[str]]:
+    """
+    Updates fields on an existing item after validation and normalization.
+
+    Args:
+        item_id: The ID of the item to edit.
+        changes: The fields to change. The ID itself can't be changed.
+
+    Returns:
+        (updated item, []) on success, or (None, errors) if the item doesn't
+        exist or the edited item fails validation. Nothing is saved on failure.
+    """
+    if "id" in changes:
+        return None, ['Item field "id" cannot be changed.']
+
+    wardrobe = load_wardrobe()
+    for index, item in enumerate(wardrobe["items"]):
+        if item["id"] == item_id:
+            break
+    else:
+        return None, [f"No item with ID {item_id}."]
+
+    updated = normalize_item({**item, **changes})
+    errors = validate_item(updated)
+    if errors:
+        return None, errors
+
+    wardrobe["items"][index] = updated
+    save_wardrobe(wardrobe)
+    return updated, []
+
+def remove_item(item_id: str) -> dict | None:
     """
     Removes an item from the wardrobe by its ID.
 
     Args:
         item_id: The ID of the item to remove.
+
+    Returns:
+        The removed item, or None if no item has that ID. next_id is not
+        lowered, so the ID is never handed out again.
     """
     wardrobe = load_wardrobe()
 
-    original_count = len(wardrobe["items"])
-    wardrobe["items"] = [item for item in wardrobe["items"] if item["id"] != item_id]
+    for item in wardrobe["items"]:
+        if item["id"] == item_id:
+            break
+    else:
+        return None  # Item not found
 
-    if len(wardrobe["items"]) == original_count:
-        return False  # Item not found
-
+    wardrobe["items"] = [i for i in wardrobe["items"] if i["id"] != item_id]
     save_wardrobe(wardrobe)
 
-    return True
+    return item
