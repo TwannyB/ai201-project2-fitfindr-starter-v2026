@@ -60,6 +60,7 @@ works with a direct call, and **a documented failure earns the point in full.**
 from mcp.server.fastmcp import FastMCP
 
 from tools import search_listings as _search_listings_impl  # noqa: F401 — you'll use this below
+from tools import get_wardrobe as _get_wardrobe_impl
 
 # log_level="WARNING" keeps the server from printing an INFO line for every
 # request. Without it your terminal fills with "Processing request of type
@@ -88,6 +89,32 @@ def search_listings(
     query(`description`), it returns an empty list.
     """
     return _search_listings_impl(description, size, max_price)
+
+@mcp.tool()
+def get_wardrobe(
+    category: str | None = None,
+) -> dict:
+    """
+    This tool returns the user's wardrobe as a dict of clothing items. 
+
+    It only reads the saved wardrobe. It doesn't change anything or call a model, so it's safe to call repeatedly.  
+    
+    It takes in an optional string `category` to filter 
+    the wardrobe by category. The five categories are "tops", "bottoms", "outerwear", "shoes", and "accessories". The category
+    is also case-insensitive.
+    If no category is provided, it returns the entire wardrobe. The returned dict(has an "items" key with a list of items 
+    as its value) contains clothing items with their details: id, name, category, colors, style_tags, notes.
+    The ID is in the format of w_NNN where NNN is a unique number for each item, and the IDs are stable and never
+    reused. 
+
+    In the empty case, when the wardrobe is empty or when a category is provided but there are no items in that category, 
+    it returns a dict with an "items" key and an empty list as its value. React by telling the user that they don't have
+    any items of that category in their wardrobe.
+
+    In the error case, when an invalid category is provided, the call returns an error naming the valid categories.
+    React by telling the user that the category they provided is invalid and list the valid categories.
+    """
+    return _get_wardrobe_impl(category)
 
 
 #
