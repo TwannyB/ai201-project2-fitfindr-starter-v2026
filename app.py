@@ -109,13 +109,18 @@ def cmd_examples(args):
 
 
 def _ask_one(query, wardrobe, use_trace):
-    from agent import run_agent
+    from run_log import logged_run
     import trace as trace_module
 
     if use_trace:
         trace_module.start_trace()
 
-    session = run_agent(query, wardrobe)
+    # Same agent run, plus a record in logs/runs.jsonl (no echo: the CLI
+    # prints the outfit, not JSON).
+    session = logged_run(
+        query, wardrobe, source="cli",
+        wardrobe_source="saved" if wardrobe is None else "empty",
+    )
 
     print()
     if session["error"]:

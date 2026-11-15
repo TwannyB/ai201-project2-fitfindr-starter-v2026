@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from utils.data_loader import get_example_wardrobe, load_wardrobe_schema
 from typing import Optional
 
@@ -64,8 +65,13 @@ def validate_item(item: dict) -> list[str]:
             errors.append(f'Item has unknown field "{field}". Allowed fields: {", ".join(schema)}.')
 
     for field, value in item.items():
-        if field == "id" and not isinstance(value, str):
-            errors.append('Item field "id" must be a string.')
+        if field == "id":
+            if not isinstance(value, str):
+                errors.append('Item field "id" must be a string.')
+            elif not re.fullmatch(r"w_\d{3}", value):
+                # Outfits cite pieces by this ID and the grounding check only
+                # recognises w_NNN, so any other shape could never be grounded.
+                errors.append(f'Item field "id" must look like w_001 (got {value!r}).')
         if field == "name":
             if not isinstance(value, str):
                 errors.append('Item field "name" must be a string.')
@@ -87,6 +93,49 @@ def validate_item(item: dict) -> list[str]:
             errors.append('Item field "notes" must be a string or null.')
     
     return errors
+
+# A wardrobe sent with a request goes straight into the model's prompt, so cap
+# its size: it bounds prompt length (and cost) for a public endpoint. Real
+# wardrobes in this project are around ten items.
+MAX_REQUEST_ITEMS = 50
+
+
+def validate_wardrobe(wardrobe) -> tuple[dict | None, list[str]]:
+    """
+    Check a whole wardrobe that didn't come from the store, e.g. one sent to
+    serve.py's /ask. Each item gets the same checks as add_item, plus checks
+    only a whole wardrobe can fail: its shape, its size, and duplicate IDs.
+
+    Returns:
+        (normalized wardrobe {"items": [...]}, []) when valid, or
+        (None, errors) with every problem found, each naming the item.
+    """
+    if not isinstance(wardrobe, dict):
+        return None, ['"wardrobe" must be an object like {"items": [...]}.']
+    items = wardrobe.get("items")
+    if not isinstance(items, list):
+        return None, ['"wardrobe" must have an "items" list.']
+    if len(items) > MAX_REQUEST_ITEMS:
+        return None, [f'"wardrobe" can have at most {MAX_REQUEST_ITEMS} items (got {len(items)}).']
+
+    errors, normalized, seen = [], [], set()
+    for index, item in enumerate(items, 1):
+        if not isinstance(item, dict):
+            errors.append(f"Item {index}: must be an object.")
+            continue
+        clean = normalize_item(item)
+        errors += [f"Item {index}: {e}" for e in validate_item(clean)]
+        item_id = clean.get("id")
+        if isinstance(item_id, str):
+            if item_id in seen:
+                errors.append(f"Item {index}: duplicate id {item_id}.")
+            seen.add(item_id)
+        normalized.append(clean)
+
+    if errors:
+        return None, errors
+    return {"items": normalized}, []
+
 
 def normalize_item(item: dict) -> dict:
     """

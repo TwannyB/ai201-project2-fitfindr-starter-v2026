@@ -27,10 +27,9 @@ web server has to be. The reason is worth reading before you deploy: see the
 note above `_one_at_a_time` below — it also decides which gunicorn worker you
 can use.
 
-⚠️ There is deliberately NO logging, NO timing and NO request counting in this
-file. That is unit 9's follow-along: you instrument this yourself, first, and
-then deploy it. A structured log you were handed teaches you nothing about
-what belongs in one — and the timing field is the one everybody skips.
+Instrumented (capstone, Milestone 3): every /ask, including rejected and
+crashed ones, writes a timed JSON record to logs/runs.jsonl and stdout. The
+record format lives in run_log.py.
 """
 
 import os
@@ -43,7 +42,8 @@ import config  # noqa: F401
 
 from flask import Flask, jsonify, request
 
-from agent import run_agent
+from run_log import log_record, logged_run, new_record
+from utils.wardrobe_store import validate_wardrobe
 
 
 app = Flask(__name__)
@@ -104,19 +104,37 @@ def ask():
 
     In:   {"query": "...", "wardrobe": {...}}   wardrobe optional — leave it
                                                 out and you get the saved
-                                                wardrobe the CLI uses.
+                                                wardrobe the CLI uses. On
+                                                Render that's the demo
+                                                wardrobe, reseeded each boot.
+                                                Send your own to style from
+                                                it; nothing is stored.
     Out:  the session dict from run_agent(), as JSON.
+          400 {"error": ..., "problems": [...]} for a bad query or wardrobe.
+
+    Every request leaves a record in logs/runs.jsonl and on stdout, including
+    rejected and crashed ones. See run_log.py for the fields.
     """
-    payload = request.get_json(silent=True) or {}
-    query = (payload.get("query") or "").strip()
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        payload = {}
+    query = payload.get("query")
+    query = query.strip() if isinstance(query, str) else ""
     if not query:
         # 400 rather than a stack trace: the caller can act on this one.
-        return jsonify({"error": "Send JSON with a 'query' field, e.g. "
-                                 '{"query": "vintage graphic tee under $30"}'}), 400
+        return _reject("", "Send JSON with a 'query' field, e.g. "
+                           '{"query": "vintage graphic tee under $30"}')
 
-    wardrobe = payload.get("wardrobe")
-    if not isinstance(wardrobe, dict):
-        wardrobe = None  # run_agent reads the saved wardrobe with get_wardrobe
+    if payload.get("wardrobe") is None:
+        wardrobe, wardrobe_source = None, "saved"  # run_agent fetches it with get_wardrobe
+    else:
+        # A wardrobe from the request gets the same checks as one typed into
+        # the CLI. Unchecked, an item with no id or name crashed the grounding
+        # check and came back as a 500, and the caller couldn't tell why.
+        wardrobe, problems = validate_wardrobe(payload["wardrobe"])
+        if problems:
+            return _reject(query, "The wardrobe you sent isn't valid.", problems)
+        wardrobe_source = "request"
 
     # A queued request should look like a queued request. Without this the
     # second caller just sits there, and "slow" and "waiting its turn" are
@@ -140,7 +158,9 @@ def ask():
     session = None
     with _one_at_a_time:
         try:
-            session = run_agent(query, wardrobe)
+            # logged_run times the run and writes its record, crash or not.
+            session = logged_run(query, wardrobe, source="http",
+                                 wardrobe_source=wardrobe_source, echo=True)
         except Exception as exc:  # noqa: BLE001 — a 500 with a sentence beats a hang
             failure = f"{type(exc).__name__}: {exc}"
 
@@ -150,6 +170,18 @@ def ask():
         return jsonify({"error": failure}), 500
 
     return jsonify(session)
+
+
+def _reject(query: str, message: str, problems: list[str] | None = None):
+    """A 400 the caller can act on, and a log record so it isn't invisible."""
+    record = new_record("http", query)
+    record["status"] = "rejected"
+    record["error"] = message + (" " + " ".join(problems) if problems else "")
+    log_record(record, echo=True)
+    body = {"error": message}
+    if problems:
+        body["problems"] = problems
+    return jsonify(body), 400
 
 
 if __name__ == "__main__":

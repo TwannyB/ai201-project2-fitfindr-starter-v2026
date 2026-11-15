@@ -1,0 +1,28 @@
+# Render Blueprint for FitFindr. Render reads this when you create the service
+# with New → Blueprint, so every setting below lives in the repo, not in
+# dashboard clicks nobody can see. RUNNING.md walks through it.
+services:
+  - type: web
+    name: fitfindr
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # The DEFAULT sync worker, on purpose: an async worker (-k gevent, uvicorn)
+    # already has an event loop running, and mcp_client's asyncio.run() refuses
+    # to start inside one, so every MCP call would fail. See serve.py.
+    #
+    # --timeout 120: gunicorn kills a request after 30 s by default. One /ask
+    # makes 2-3 model calls and starts the MCP server twice; that took 5-7 s
+    # locally, but the free tier's CPU is far slower, a grounding retry adds a
+    # model call, and generate.py may wait up to 60 s for the per-minute limit.
+    # Gunicorn binds to $PORT, which Render sets, on its own.
+    startCommand: gunicorn serve:app --timeout 120
+    healthCheckPath: /health
+    envVars:
+      # requirements.txt supports 3.11-3.13, not 3.14.
+      - key: PYTHON_VERSION
+        value: "3.13"
+      # The secret. sync: false means Render asks for it when you create the
+      # service; it's never in the repo.
+      - key: GEMINI_API_KEY
+        sync: false

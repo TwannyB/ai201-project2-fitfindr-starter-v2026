@@ -83,6 +83,10 @@ does nothing.
 | `python mcp_client.py` | Asks the server what it offers — **unit 4** |
 | `python run_eval.py --label before` | Runs every scenario five times and writes the run log — **unit 4** |
 | `python serve.py` | Serves the agent over HTTP instead of exiting — **unit 9** |
+| `python app.py wardrobe list` | Show your saved wardrobe (`data/wardrobe.json`) — **capstone** |
+| `python app.py wardrobe add` | Add an item; prompts for each field and validates it |
+| `python app.py wardrobe edit w_003` | Change an item; Enter keeps the current value |
+| `python app.py wardrobe remove w_003` | Delete an item (asks first). IDs are never reused |
 
 Useful flags on `ask`:
 
@@ -152,6 +156,98 @@ gunicorn serve:app
 `serve.py` ships with **no logging and no timing in it**, on purpose. You add
 that yourself in the follow-along, before you deploy — instrumenting first is
 the point of the session.
+
+---
+
+## Deployed on Render — **capstone**
+
+**URL:** `https://<your-service>.onrender.com` ← fill in after the first deploy
+
+### How it got there
+
+The settings are in `render.yaml` (a Render Blueprint), so the dashboard only
+needs your repo and your API key:
+
+1. Push to GitHub. Render deploys from the repo, not from your machine.
+2. On [dashboard.render.com](https://dashboard.render.com): **New → Blueprint**,
+   connect the GitHub repo, and pick the `main` branch. Render finds
+   `render.yaml` and shows one web service, `fitfindr`, on the free plan.
+3. It asks for **`GEMINI_API_KEY`** (marked `sync: false`, so it's never in the
+   repo). Paste the same key that's in your `.env`.
+4. **Apply.** The first build takes a few minutes. When the log says the
+   service is live, check it:
+
+```bash
+curl https://<your-service>.onrender.com/health
+```
+
+Every push to `main` redeploys automatically.
+
+### What `render.yaml` sets, and why
+
+| Setting | Why |
+|---|---|
+| `pip install -r requirements.txt` | Same pinned packages as local |
+| `gunicorn serve:app --timeout 120` | The default **sync** worker (an async one breaks every MCP call — see the table above). The timeout is raised from gunicorn's 30 s because one `/ask` makes 2–3 model calls and starts the MCP server twice: 5–19 s locally, slower on the free CPU, longer with a grounding retry or a rate-limit wait |
+| `healthCheckPath: /health` | Render pings it before sending traffic and after each deploy |
+| `PYTHON_VERSION = 3.13` | `requirements.txt` supports 3.11–3.13, not 3.14. If the build log says the version isn't found, set the full version (e.g. `3.13.5`) |
+| `GEMINI_API_KEY` | The only secret. Set in the dashboard, never committed |
+
+### Asking it something
+
+With the **demo wardrobe** (what `data/wardrobe.json` reseeds to):
+
+```bash
+curl -X POST https://<your-service>.onrender.com/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "vintage graphic tee under $30"}'
+```
+
+With **your own wardrobe**, sent with the request. Nothing is stored; it's
+checked with the same rules as `app.py wardrobe add` (IDs like `w_001`, one of
+five categories, at least one color, at most 50 items):
+
+```bash
+curl -X POST https://<your-service>.onrender.com/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "denim jacket under $50", "wardrobe": {"items": [
+        {"id": "w_001", "name": "Cream cable-knit sweater", "category": "tops", "colors": ["cream"], "style_tags": ["cozy"]},
+        {"id": "w_002", "name": "Black straight-leg trousers", "category": "bottoms", "colors": ["black"], "style_tags": []},
+        {"id": "w_003", "name": "Brown suede loafers", "category": "shoes", "colors": ["brown"], "style_tags": []}]}}'
+```
+
+An invalid wardrobe comes back as `400` with a `problems` list naming each
+item's mistakes, instead of reaching the agent.
+
+### What's different from running it locally
+
+| | Local | Render (free) |
+|---|---|---|
+| Saved wardrobe | `data/wardrobe.json`, edited with `app.py wardrobe …`, survives restarts | **Demo wardrobe only.** The free tier's disk is wiped on every deploy, restart and sleep, so the file reseeds from the example each boot, and there are no routes to edit it. Persistence is a local feature |
+| Your own wardrobe | Edit the saved one | Send it in the `/ask` body (above) |
+| Run records | `logs/runs.jsonl` | The **Logs** tab: each run prints the same JSON line to stdout. The file is wiped with the disk |
+| First request | Instant | ~1 minute after 15 min idle — the free tier sleeps |
+
+### Run records
+
+Every run writes one JSON line to `logs/runs.jsonl`: from `python app.py ask`,
+from `/ask`, and also rejected requests (`status: "rejected"`) and crashes
+(`status: "crashed"`). `serve.py` also prints each line to stdout, which is how
+they reach Render's Logs tab. The fields are documented at the top of
+`run_log.py`; the ones you'll use most:
+
+`ts`, `run_id`, `source` (cli/http), `status` (ok/stopped/crashed/rejected),
+`query`, `duration_ms`, `error`, `wardrobe_source` (saved/request/empty),
+`grounded`, `grounding_retries`, `model_calls`, `prompt_tokens`, `output_tokens`.
+
+Read them back:
+
+```bash
+python -c "import json; [print(r['ts'], r['status'], r['duration_ms'], r.get('model_calls')) for r in map(json.loads, open('logs/runs.jsonl', encoding='utf-8'))]"
+```
+
+`logs/` is in `.gitignore`: the records are runtime output. Copy the entries
+you need into the README.
 
 ---
 
