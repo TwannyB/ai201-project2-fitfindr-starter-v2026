@@ -161,7 +161,7 @@ the point of the session.
 
 ## Deployed on Render — **capstone**
 
-**URL:** `https://<your-service>.onrender.com` ← fill in after the first deploy
+**URL:** https://fitfindr-ppek.onrender.com
 
 ### How it got there
 
@@ -178,7 +178,7 @@ needs your repo and your API key:
    service is live, check it:
 
 ```bash
-curl https://<your-service>.onrender.com/health
+curl https://fitfindr-ppek.onrender.com/health
 ```
 
 Every push to `main` redeploys automatically.
@@ -198,7 +198,7 @@ Every push to `main` redeploys automatically.
 With the **demo wardrobe** (what `data/wardrobe.json` reseeds to):
 
 ```bash
-curl -X POST https://<your-service>.onrender.com/ask \
+curl -X POST https://fitfindr-ppek.onrender.com/ask \
   -H 'Content-Type: application/json' \
   -d '{"query": "vintage graphic tee under $30"}'
 ```
@@ -208,7 +208,7 @@ checked with the same rules as `app.py wardrobe add` (IDs like `w_001`, one of
 five categories, at least one color, at most 50 items):
 
 ```bash
-curl -X POST https://<your-service>.onrender.com/ask \
+curl -X POST https://fitfindr-ppek.onrender.com/ask \
   -H 'Content-Type: application/json' \
   -d '{"query": "denim jacket under $50", "wardrobe": {"items": [
         {"id": "w_001", "name": "Cream cable-knit sweater", "category": "tops", "colors": ["cream"], "style_tags": ["cozy"]},
