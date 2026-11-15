@@ -85,6 +85,13 @@
 - **Returns:** It returns a list of dicts where each dict is a listing dict that has an id, title, description, category, style_tags, size, condition, price, colors, brand, and platform. The list is ranked by shared style tags, then the same category and shared colors.
 - **When it has nothing:** It returns an empty list.
 
+### Capstone `get_wardrobe`
+
+- **What it does:** It reads the user's saved wardrobe from `data/wardrobe.json`, either all of it or only one category. It doesn't call the model.
+- **Inputs:** `category` (string or None): one of tops, bottoms, outerwear, shoes, accessories, case-insensitive. None or "" means every category.
+- **Returns:** It returns a wardrobe dict `{"items": [...]}`, the same shape `suggest_outfit` takes. Each item has an id (`w_NNN`), name, category, colors, style_tags, and notes (string or None), in saved order. Storage fields (`next_id`, `user_id`) are left out.
+- **When it has nothing:** It returns `{"items": []}` when nothing is saved, or nothing is saved in that category. An unknown category raises `ValueError` instead, so a typo isn't mistaken for an empty category.
+
 ---
 
 ## Planning Loop

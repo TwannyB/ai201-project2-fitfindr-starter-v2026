@@ -3,6 +3,8 @@ import json
 from utils.data_loader import get_example_wardrobe, load_wardrobe_schema
 from typing import Optional
 
+CATEGORIES = ("tops", "bottoms", "outerwear", "shoes", "accessories")
+
 WARDROBE_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "wardrobe.json")
 
 def load_wardrobe() -> dict:
@@ -71,8 +73,8 @@ def validate_item(item: dict) -> list[str]:
                 errors.append('Item field "name" cannot be empty.')
             elif len(value) > 100:
                 errors.append('Item field "name" cannot exceed 100 characters.')
-        if field == "category" and value not in ["tops", "bottoms", "outerwear", "shoes", "accessories"]:
-            errors.append('Item field "category" must be one of: tops, bottoms, outerwear, shoes, accessories.')
+        if field == "category" and value not in CATEGORIES:
+            errors.append(f'Item field "category" must be one of: {", ".join(CATEGORIES)}.')
         if field == "colors":
             if not isinstance(value, list) or not all(isinstance(color, str) for color in value):
                 errors.append('Item field "colors" must be a list of strings.')

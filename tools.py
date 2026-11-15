@@ -9,6 +9,7 @@ can't tell which layer is lying to you.
     search_listings(description, size, max_price)  → list[dict]
     suggest_outfit(new_item, wardrobe)             → str
     create_fit_card(outfit, new_item)              → str
+    get_wardrobe(category=None)                    → dict  (capstone)
 
 All three are stubs right now. They run and they do nothing — that's the
 starting position and it's deliberate.
@@ -25,6 +26,7 @@ import re
 import config  # noqa: F401 — you'll use this in search_listings
 from generate import generate
 from utils.data_loader import load_listings
+from utils.wardrobe_store import CATEGORIES, load_wardrobe
 
 
 # ── shared helpers ────────────────────────────────────────────────────────────
@@ -376,3 +378,46 @@ def find_similar(item: dict) -> list[dict]:
 
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return [listing for _, listing in scored[: config.SEARCH_RESULT_LIMIT]]
+
+
+# ── Tool 5 (capstone): get_wardrobe ───────────────────────────────────────────
+
+def get_wardrobe(category: str | None = None) -> dict:
+    """
+    Read the user's saved wardrobe from data/wardrobe.json.
+
+    Like search_listings, this doesn't call the model.
+
+    Args:
+        category: one of tops, bottoms, outerwear, shoes, accessories to get
+                only that category, or None (or "") for everything.
+                Case and surrounding spaces don't matter.
+
+    Returns:
+        A wardrobe dict {"items": [...]} in the same shape suggest_outfit
+        takes. Each item has: id (e.g. "w_003"), name, category,
+        colors (list), style_tags (list), notes (str or None).
+        Items keep their saved order. Storage fields like next_id and
+        user_id are left out.
+        **Returns {"items": []} when nothing is saved, or nothing is saved in
+        that category — never None, and not an exception.**
+
+    Raises:
+        ValueError: if `category` isn't one of the five categories, so a typo
+                    isn't mistaken for "you own nothing in that category".
+                    Also if data/wardrobe.json is corrupted (from load_wardrobe).
+
+    Test it from a terminal:
+        python -c "from tools import get_wardrobe; print(get_wardrobe('shoes'))"
+    """
+    items = load_wardrobe().get("items") or []
+
+    wanted = (category or "").strip().lower()
+    if wanted:
+        if wanted not in CATEGORIES:
+            raise ValueError(
+                f"Unknown category {category!r}. Use one of: {', '.join(CATEGORIES)}."
+            )
+        items = [item for item in items if item.get("category") == wanted]
+
+    return {"items": items}
