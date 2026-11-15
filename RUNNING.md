@@ -45,8 +45,9 @@ python app.py ask 'vintage graphic tee under $30'
 
 You get a listing, one or two outfits made from your saved wardrobe (each
 piece cited by ID, like `- w_003: White ribbed tank top`), and a caption. Your
-wardrobe lives in `data/wardrobe.json`, which doesn't exist until this first
-run creates it from a demo wardrobe. Then edit it:
+wardrobe lives in `data/wardrobe.json`. If that file doesn't exist yet (a fresh
+clone), this run creates it from a demo wardrobe, `w_001`–`w_010`; if it does,
+the outfits use whatever you've saved. Then edit it:
 
 ```
 python app.py wardrobe list
@@ -56,7 +57,10 @@ python app.py wardrobe add          # prompts for each field
 **4. Run it as a server** (optional) — `python serve.py`, then send requests
 from a **second** terminal: the same commands as
 [Try the hosted version](#try-the-hosted-version), with
-`https://fitfindr-ppek.onrender.com` replaced by `http://localhost:5000`.
+`https://fitfindr-ppek.onrender.com` replaced by `http://127.0.0.1:5000`.
+Use `127.0.0.1` rather than `localhost` on Windows: `localhost` tries IPv6
+first, which the server doesn't listen on, and every request waits ~2 s before
+falling back.
 
 **5. Read what it recorded.** Every run, including failed ones, adds a line to
 `logs/runs.jsonl`. From the project folder, in either shell:
@@ -210,7 +214,7 @@ curl -X POST http://localhost:5000/ask \
 
 That's bash. On Windows, use the PowerShell requests in
 [Try the hosted version](#try-the-hosted-version) with the URL swapped for
-`http://localhost:5000`.
+`http://127.0.0.1:5000` (not `localhost`, which adds ~2 s per request there).
 
 On a host, the start command is:
 
@@ -348,9 +352,15 @@ one has a bad ID and a category that doesn't exist:
 try {
   Invoke-RestMethod -Method Post -Uri https://fitfindr-ppek.onrender.com/ask -ContentType 'application/json' -TimeoutSec 120 -Body '{"query": "denim jacket", "wardrobe": {"items": [{"id": "shirt1", "name": "Cap", "category": "hats", "colors": ["black"], "style_tags": []}]}}'
 } catch {
-  # Windows PowerShell throws on a 400; this reads the body it came with.
-  $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-  $reader.ReadToEnd()
+  # Windows PowerShell throws on a 400. Depending on the server, the body is
+  # already in ErrorDetails (the local Flask server) or still in the response
+  # stream (Render); this prints it either way.
+  if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message }
+  else {
+    $stream = $_.Exception.Response.GetResponseStream()
+    if ($stream.CanSeek) { $stream.Position = 0 }
+    (New-Object System.IO.StreamReader($stream)).ReadToEnd()
+  }
 }
 ```
 

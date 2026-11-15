@@ -196,14 +196,25 @@ if __name__ == "__main__":
     # your own terminal when you want the reloader.
     debug = os.getenv("AI201_DEBUG", "0") == "1"
 
-    print(f"\nFitFindr is listening on http://localhost:{port}")
+    # 127.0.0.1, not localhost: on Windows, localhost tries IPv6 first, which
+    # this server doesn't listen on, and each request waits ~2 s to fall back.
+    url = f"http://127.0.0.1:{port}"
+    print(f"\nFitFindr is listening on {url}")
     print("It runs one request at a time — a second one waits for the first.")
-    print("Ask it something (single quotes, as always):\n")
+    print("Ask it something from a second terminal (single quotes, as always):\n")
+    print("  Windows PowerShell:")
     print(
-        f"  curl -X POST http://localhost:{port}/ask \\\n"
-        f"    -H 'Content-Type: application/json' \\\n"
-        f"    -d '{{\"query\": \"vintage graphic tee under $30\"}}'\n"
+        f"    Invoke-RestMethod -Method Post -Uri {url}/ask "
+        "-ContentType 'application/json' "
+        "-Body '{\"query\": \"vintage graphic tee under $30\"}'\n"
     )
+    print("  macOS / Linux:")
+    print(
+        f"    curl -X POST {url}/ask \\\n"
+        f"      -H 'Content-Type: application/json' \\\n"
+        f"      -d '{{\"query\": \"vintage graphic tee under $30\"}}'\n"
+    )
+    print("More requests, and how to read a 400, are in RUNNING.md.")
     print("Ctrl-C to stop.\n")
 
     app.run(host="0.0.0.0", port=port, debug=debug)
