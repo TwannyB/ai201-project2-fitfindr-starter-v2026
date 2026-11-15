@@ -16,7 +16,15 @@ services:
     # locally, but the free tier's CPU is far slower, a grounding retry adds a
     # model call, and generate.py may wait up to 60 s for the per-minute limit.
     # Gunicorn binds to $PORT, which Render sets, on its own.
-    startCommand: gunicorn serve:app --timeout 120
+    #
+    # --threads 4: still ONE process (the free tier has 512 MB), but four
+    # threads, so /health can answer while an /ask is running. With a single
+    # thread, Render's health check (5 s timeout) queued behind a 10-20 s /ask,
+    # timed out, and Render restarted the instance mid-run. Agent runs still go
+    # one at a time: serve.py's _one_at_a_time lock makes them wait. Threads
+    # are fine for MCP; it's async workers (gevent, uvicorn) that break
+    # asyncio.run(), because they already have an event loop running.
+    startCommand: gunicorn serve:app --timeout 120 --threads 4
     healthCheckPath: /health
     envVars:
       # requirements.txt supports 3.11-3.13, not 3.14.

@@ -32,6 +32,7 @@ Standard library only, so it runs from any terminal with Python 3.
 import argparse
 import datetime as dt
 import json
+import re
 import sys
 import time
 import urllib.error
@@ -79,6 +80,20 @@ def _request(method: str, url: str, body: dict | None = None, timeout: int = 150
         return status, text, seconds
 
 
+def _short(body) -> str:
+    """
+    One line for a response that isn't the JSON we expected. A 502 from Render's
+    proxy is a whole HTML page; print what it is, not the page.
+    """
+    if isinstance(body, str) and "<html" in body.lower():
+        title = re.search(r"<title>(.*?)</title>", body, re.IGNORECASE | re.DOTALL)
+        request_id = re.search(r"Request ID:\s*([\w-]+)", body)
+        return ("HTML error page from the host"
+                + (f" ({title.group(1).strip()})" if title else "")
+                + (f", Request ID {request_id.group(1)}" if request_id else ""))
+    return str(body)[:120]
+
+
 def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%H:%M:%S")
 
@@ -104,14 +119,19 @@ def cmd_send(args):
             if result == "ok":
                 times.append(seconds)
         else:
-            result, grounded, item = "failed", "-", str(body)[:60]
+            result, grounded, item = "failed", "-", _short(body)
         print(f"{n:>2}  {sent:<10} {status:<4} {seconds:>6.1f}  {result:<8} {str(grounded):<8} {query} → {item}")
 
     sent = _now()
     status, body, seconds = _request("POST", f"{base}/ask", BAD_REQUEST)
-    problems = body.get("problems") if isinstance(body, dict) else body
-    print(f" F  {sent:<10} {status:<4} {seconds:>6.1f}  {'rejected' if status == 400 else '??':<8} {'-':<8} bad wardrobe → {problems}")
+    problems = body.get("problems") if isinstance(body, dict) else _short(body)
+    print(f" F  {sent:<10} {status:<4} {seconds:>6.1f}  {'rejected' if status == 400 else 'failed':<8} {'-':<8} bad wardrobe → {problems}")
 
+    failed = len(QUERIES) - len(times)
+    if failed:
+        print(f"\n⚠️  {failed} of {len(QUERIES)} runs didn't succeed. If they were 502s, the service "
+              "restarted mid-run (check Render's Events tab); re-run once it's Live "
+              "rather than averaging a partial batch.")
     if times:
         print(f"\nRound-trip time, {len(times)} successful runs: average {sum(times) / len(times):.1f}s, "
               f"min {min(times):.1f}s, max {max(times):.1f}s (includes network; "

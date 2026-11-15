@@ -87,6 +87,11 @@ app = Flask(__name__)
 #
 #     gunicorn serve:app              ← right: the DEFAULT sync worker
 #     gunicorn -k gevent serve:app    ← breaks every MCP call you make
+#
+# Deployed, render.yaml adds --threads 4: still one process, but plain threads
+# (no event loop, so asyncio.run() still works), so /health can answer while
+# an /ask holds this lock. With one thread, Render's 5-second health check
+# queued behind back-to-back /ask requests and Render restarted the instance.
 
 _one_at_a_time = threading.Lock()
 

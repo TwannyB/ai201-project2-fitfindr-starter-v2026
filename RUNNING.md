@@ -266,7 +266,7 @@ Every push to `main` redeploys automatically.
 | Setting | Why |
 |---|---|
 | `pip install -r requirements.txt` | Same pinned packages as local |
-| `gunicorn serve:app --timeout 120` | The default **sync** worker (an async one breaks every MCP call — see the table above). The timeout is raised from gunicorn's 30 s because one `/ask` makes 2–3 model calls and starts the MCP server twice: 5–19 s locally, slower on the free CPU, longer with a grounding retry or a rate-limit wait |
+| `gunicorn serve:app --timeout 120 --threads 4` | **Not async** (an async worker breaks every MCP call — see the table above). The timeout is raised from gunicorn's 30 s because one `/ask` makes 2–3 model calls and starts the MCP server twice: 5–19 s locally, slower on the free CPU, longer with a grounding retry or a rate-limit wait. `--threads 4` keeps one process (512 MB) but lets `/health` answer while an `/ask` runs: with one thread, Render's 5-second health check queued behind back-to-back `/ask` requests, timed out, and Render restarted the instance. Agent runs still go one at a time through `serve.py`'s lock |
 | `healthCheckPath: /health` | Render pings it before sending traffic and after each deploy |
 | `PYTHON_VERSION = 3.13` | `requirements.txt` supports 3.11–3.13, not 3.14. If the build log says the version isn't found, set the full version (e.g. `3.13.5`) |
 | `GEMINI_API_KEY` | The only secret. Set in the dashboard, never committed |
