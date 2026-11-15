@@ -44,7 +44,7 @@ import config  # noqa: F401
 from flask import Flask, jsonify, request
 
 from agent import run_agent
-from utils.data_loader import get_example_wardrobe
+
 
 app = Flask(__name__)
 
@@ -103,8 +103,8 @@ def ask():
     Run the agent on one query.
 
     In:   {"query": "...", "wardrobe": {...}}   wardrobe optional — leave it
-                                                out and you get the same
-                                                example wardrobe the CLI uses.
+                                                out and you get the saved
+                                                wardrobe the CLI uses.
     Out:  the session dict from run_agent(), as JSON.
     """
     payload = request.get_json(silent=True) or {}
@@ -116,7 +116,7 @@ def ask():
 
     wardrobe = payload.get("wardrobe")
     if not isinstance(wardrobe, dict):
-        wardrobe = get_example_wardrobe()
+        wardrobe = None  # run_agent reads the saved wardrobe with get_wardrobe
 
     # A queued request should look like a queued request. Without this the
     # second caller just sits there, and "slow" and "waiting its turn" are

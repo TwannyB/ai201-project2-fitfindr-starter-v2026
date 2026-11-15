@@ -24,7 +24,7 @@ import mcp_client
 
 # ── session state ─────────────────────────────────────────────────────────────
 
-def new_session(query: str, wardrobe: dict) -> dict:
+def new_session(query: str, wardrobe: dict | None) -> dict:
     """
     A fresh session for one user interaction.
 
@@ -44,7 +44,10 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "searched": False,           # True once search_listings has run, even if it found nothing
         "search_results": [],        # everything search_listings returned
         "selected_item": None,       # the one you chose — goes into suggest_outfit
-        "wardrobe": wardrobe,        # the user's wardrobe
+        "wardrobe": wardrobe,        # the user's wardrobe; None until get_wardrobe runs
+        "wardrobe_checked": False,   # True once the empty / missing-category check has run
+        "missing_categories": [],    # tops/bottoms/shoes the wardrobe can't supply
+        "wardrobe_note": None,       # shown to the user when the wardrobe is empty or has gaps
         "outfit_suggestion": None,   # what suggest_outfit returned
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
@@ -151,21 +154,43 @@ def _no_results_message(parsed: dict) -> str:
     return f"{searched}. Try {advice}."
 
 
+# An outfit needs a top, bottoms and shoes. Outerwear and accessories are extras,
+# so not owning them isn't a gap.
+_CORE_CATEGORIES = ["tops", "bottoms", "shoes"]
+
+
+def _wardrobe_gaps(wardrobe: dict, selected_item: dict) -> list[str]:
+    """
+    Core categories the outfit can't fill: not in the wardrobe, and not the
+    selected item's own category (buying shoes covers the shoes).
+    """
+    owned = {item.get("category") for item in wardrobe.get("items") or []}
+    return [
+        c for c in _CORE_CATEGORIES
+        if c not in owned and c != selected_item.get("category")
+    ]
+
+
 # ── planning loop ─────────────────────────────────────────────────────────────
 
-def run_agent(query: str, wardrobe: dict) -> dict:
+def run_agent(query: str, wardrobe: dict | None = None) -> dict:
     """
     Run the loop once and return the finished session.
 
     Args:
         query:    what the user asked for, in plain language
                   (e.g. "vintage graphic tee under $30, size M").
-        wardrobe: a wardrobe dict — get_example_wardrobe() or
-                  get_empty_wardrobe() from utils/data_loader.py.
+        wardrobe: None (the default) to read the user's saved wardrobe with
+                  get_wardrobe over MCP, after a listing is chosen. Or pass a
+                  wardrobe dict to use that instead and skip the fetch — evals
+                  pass get_example_wardrobe() / get_empty_wardrobe() so runs
+                  stay comparable.
 
     Returns:
         The session dict. **Check session["error"] first** — if it isn't None,
         the run ended early and the later fields will still be None.
+        Otherwise check session["wardrobe_note"]: set when the wardrobe is
+        empty or missing tops, bottoms or shoes. The run still finishes then.
 
     ─────────────────────────────────────────────────────────────────────────
     TODO — build this, following the branch rule you wrote in Milestone 2.
@@ -243,8 +268,56 @@ def run_agent(query: str, wardrobe: dict) -> dict:
                 return session
 
             elif session["selected_item"] is None:
-            
                 session["selected_item"] = session["search_results"][0]
+
+            elif session["wardrobe"] is None:
+                # No wardrobe was passed in, so read the saved one over MCP.
+                # Only the MCP call is inside the try: it's the only thing
+                # here that can raise MCPError.
+                try:
+                    session["wardrobe"] = mcp_client.call_tool("get_wardrobe", {})
+                except mcp_client.MCPError:
+                    # Can't continue: styling with no wardrobe would hide a
+                    # broken file. str(exc) is a generic MCP message (see
+                    # step 5), so say what to do instead.
+                    session["error"] = (
+                        "Couldn't read your saved wardrobe. Check that "
+                        "data/wardrobe.json is valid JSON, or delete it to reset "
+                        "to the demo wardrobe."
+                    )
+                    trace.step("get_wardrobe", inputs={}, returned=None,
+                               note="branch: MCP call failed, stopping")
+                    return session
+                trace.step("get_wardrobe", inputs={}, returned=session["wardrobe"])
+
+            elif not session["wardrobe_checked"]:
+                # Runs whether the wardrobe came from get_wardrobe or was passed
+                # in (evals, --empty-wardrobe), so both get the same checks.
+                # Neither case stops the run: suggest_outfit still has something
+                # to give.
+                items = session["wardrobe"].get("items") or []
+                if not items:
+                    session["wardrobe_note"] = (
+                        "Your wardrobe is empty, so these are general styling "
+                        "ideas. Add your clothes with: python app.py wardrobe add"
+                    )
+                    branch = "branch: empty wardrobe, continuing with general advice"
+                else:
+                    gaps = _wardrobe_gaps(session["wardrobe"], session["selected_item"])
+                    session["missing_categories"] = gaps
+                    if gaps:
+                        session["wardrobe_note"] = (
+                            f"Your wardrobe has no {', '.join(gaps)}, so the outfit "
+                            "may be incomplete. Add some with: python app.py wardrobe add"
+                        )
+                        branch = f"branch: missing {', '.join(gaps)}, continuing"
+                    else:
+                        branch = "wardrobe covers tops, bottoms and shoes"
+                trace.step("check_wardrobe",
+                           inputs={"items": len(items),
+                                   "selected_category": session["selected_item"].get("category")},
+                           returned=session["missing_categories"], note=branch)
+                session["wardrobe_checked"] = True
 
             elif session["outfit_suggestion"] is None:
                 session["outfit_suggestion"] = suggest_outfit(
@@ -280,16 +353,15 @@ def _show(session: dict) -> None:
     print(f"  found:    {item.get('title')} — ${item.get('price')} on {item.get('platform')}")
     print(f"  outfit:   {session['outfit_suggestion']}")
     print(f"  fit card: {session['fit_card']}")
+    if session["wardrobe_note"]:
+        print(f"  note:     {session['wardrobe_note']}")
 
 
 if __name__ == "__main__":
     from utils.data_loader import get_example_wardrobe
 
-    print("=== A query the data can match ===")
-    _show(run_agent(
-        query="looking for a vintage graphic tee under $30",
-        wardrobe=get_example_wardrobe(),
-    ))
+    print("=== A query the data can match (saved wardrobe, via get_wardrobe) ===")
+    _show(run_agent(query="looking for a vintage graphic tee under $30"))
 
     print("\n=== A query it can't ===")
     _show(run_agent(

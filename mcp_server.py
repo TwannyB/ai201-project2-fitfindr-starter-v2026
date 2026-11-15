@@ -103,7 +103,8 @@ def get_wardrobe(
     the wardrobe by category. The five categories are "tops", "bottoms", "outerwear", "shoes", and "accessories". The category
     is also case-insensitive.
     If no category is provided, it returns the entire wardrobe. The returned dict(has an "items" key with a list of items 
-    as its value) contains clothing items with their details: id, name, category, colors, style_tags, notes.
+    as its value) contains clothing items with their details: id, name, category, colors(list of strings), style_tags(list of strings), 
+    and notes(can be null or a string).
     The ID is in the format of w_NNN where NNN is a unique number for each item, and the IDs are stable and never
     reused. 
 
@@ -112,7 +113,7 @@ def get_wardrobe(
     any items of that category in their wardrobe.
 
     In the error case, when an invalid category is provided, the call returns an error naming the valid categories.
-    React by telling the user that the category they provided is invalid and list the valid categories.
+    React by changing the category to one of the valid categories and retrying the call.
     """
     return _get_wardrobe_impl(category)
 

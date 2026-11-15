@@ -127,6 +127,9 @@ def _ask_one(query, wardrobe, use_trace):
         print(f"  Outfit:   {session['outfit_suggestion']}")
         print()
         print(f"  Fit card: {session['fit_card']}")
+        if session.get("wardrobe_note"):
+            print()
+            print(f"  Note:     {session['wardrobe_note']}")
     print()
 
     if use_trace:
@@ -140,10 +143,11 @@ def _ask_one(query, wardrobe, use_trace):
 
 
 def cmd_ask(args):
-    from utils.data_loader import get_example_wardrobe, get_empty_wardrobe
+    from utils.data_loader import get_empty_wardrobe
     import generate
 
-    wardrobe = get_empty_wardrobe() if args.empty_wardrobe else get_example_wardrobe()
+    # None means "use the saved wardrobe": run_agent fetches it with get_wardrobe.
+    wardrobe = get_empty_wardrobe() if args.empty_wardrobe else None
     if args.empty_wardrobe:
         print("(running with an empty wardrobe)")
 
