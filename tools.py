@@ -10,6 +10,7 @@ can't tell which layer is lying to you.
     suggest_outfit(new_item, wardrobe)             → str
     create_fit_card(outfit, new_item)              → str
     get_wardrobe(category=None)                    → dict  (capstone)
+    check_grounding(outfit, wardrobe)              → dict  (capstone; a check, not a tool)
 
 All three are stubs right now. They run and they do nothing — that's the
 starting position and it's deliberate.
@@ -211,6 +212,7 @@ def suggest_outfit(
     new_item: dict,
     wardrobe: dict,
     missing_categories: list[str] | None = None,
+    feedback: str | None = None,
 ) -> str:
     """
     Given a thrifted item and the user's wardrobe, suggest one or two outfits.
@@ -226,6 +228,9 @@ def suggest_outfit(
                   wardrobe can't supply, from agent._wardrobe_gaps. The prompt
                   tells the model to leave those slots out rather than invent
                   them. None or [] when nothing is missing.
+        feedback: the problems check_grounding found in a previous answer,
+                  one per line. Set only on the agent's retry; the prompt then
+                  names those mistakes so the model can fix them.
 
     Returns:
         A non-empty string with outfit suggestions.
@@ -310,6 +315,15 @@ def suggest_outfit(
             "- <id>: <name exactly as listed>\n"
             "Vibe: <one sentence about the look, naming no other pieces>\n"
         )
+        if feedback:
+            # A retry after a failed grounding check. Naming the exact mistakes
+            # works better than repeating the rules, and it also changes the
+            # prompt, so the cache can't hand back the same bad answer.
+            prompt += (
+                "\nYour previous answer broke the rules:\n"
+                f"{feedback}\n"
+                "Fix this: use only ids and names copied exactly from the list.\n"
+            )
 
     response = generate(prompt, system=system)
     if not response.strip():
@@ -318,6 +332,109 @@ def suggest_outfit(
             "now. Try again, or pair it with neutral basics you already own."
         )
     return response
+
+
+# ── Grounding check (capstone) ────────────────────────────────────────────────
+#
+# Not a tool the agent chooses to call, and not on MCP: it's a deterministic
+# check on suggest_outfit's output that the loop always runs. No model call.
+
+# A piece line from suggest_outfit's format: "- NEW: <title>" or "- w_003: <name>".
+# Bullets may come back as -, * or •, and the label may be wrapped in **bold**.
+_PIECE_LINE_RE = re.compile(r"^[-*•]\s*\**\s*(NEW|w_\d{3})\s*\**\s*:\s*\**\s*(.*?)\s*\**\s*$",
+                            re.IGNORECASE)
+_ANY_ID_RE = re.compile(r"\bw_\d{3}\b")
+
+
+def _name_words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
+
+def check_grounding(outfit: str, wardrobe: dict) -> dict:
+    """
+    Check that every piece in a suggest_outfit answer is in the saved wardrobe.
+
+    Reads the line-per-piece format and flags three kinds of problem:
+
+      • unknown_ids — an id that isn't in the wardrobe (on a piece line or
+                      anywhere else in the text, e.g. the Vibe line).
+      • mismatched  — a real id whose name has words the saved name doesn't.
+                      Shortening is fine ("Black denim jacket" for "Vintage
+                      black denim jacket"); adding is not ("Oversized black
+                      denim jacket" — an invented detail).
+      • unlisted    — a piece line with no id at all, e.g. "- Gold hoops".
+
+    Plus one format problem: a non-empty wardrobe and no cited pieces, which
+    means the answer can't be checked.
+
+    Known gap: an unowned piece mentioned only in prose (a Vibe line saying
+    "add some hoops") has no line and no id, so this can't see it.
+
+    Args:
+        outfit:   the string suggest_outfit returned.
+        wardrobe: the wardrobe dict it was given.
+
+    Returns:
+        {"grounded": True | False | None,  # None = not checked (see skipped)
+         "skipped": str | None,
+         "cited_ids": [...], "unknown_ids": [...], "mismatched": [...],
+         "unlisted": [...], "problems": [human-readable strings]}
+        With an empty wardrobe, suggest_outfit gives general advice by design,
+        so the check is skipped: grounded is None.
+    """
+    result = {
+        "grounded": None, "skipped": None, "cited_ids": [], "unknown_ids": [],
+        "mismatched": [], "unlisted": [], "problems": [],
+    }
+    items = (wardrobe or {}).get("items") or []
+    if not items:
+        result["skipped"] = "empty wardrobe: general advice isn't meant to be grounded"
+        return result
+
+    saved = {item["id"]: item["name"] for item in items}
+
+    for raw in (outfit or "").splitlines():
+        line = raw.strip()
+        if not line or line[0] not in "-*•":
+            continue  # Outfit / Vibe / Missing lines aren't pieces
+        if line.startswith("**") and not _PIECE_LINE_RE.match(line):
+            continue  # a bold header like "**Outfit 1**", not a bullet
+        match = _PIECE_LINE_RE.match(line)
+        if not match:
+            result["unlisted"].append(line)
+            continue
+        label, name = match.group(1), match.group(2)
+        if label.upper() == "NEW":
+            continue
+        piece_id = label.lower()
+        if piece_id not in saved:
+            continue  # counted below with every other id in the text
+        if piece_id not in result["cited_ids"]:
+            result["cited_ids"].append(piece_id)
+        if not _name_words(name) <= _name_words(saved[piece_id]):
+            result["mismatched"].append(
+                {"id": piece_id, "said": name, "saved": saved[piece_id]}
+            )
+
+    for found in _ANY_ID_RE.findall((outfit or "").lower()):
+        if found not in saved and found not in result["unknown_ids"]:
+            result["unknown_ids"].append(found)
+
+    for piece_id in result["unknown_ids"]:
+        result["problems"].append(f"{piece_id} isn't in their wardrobe.")
+    for m in result["mismatched"]:
+        result["problems"].append(
+            f'{m["id"]} was called "{m["said"]}", but it is "{m["saved"]}".'
+        )
+    for line in result["unlisted"]:
+        result["problems"].append(f'"{line}" has no wardrobe id.')
+    if not result["cited_ids"] and not result["problems"]:
+        result["problems"].append(
+            "No wardrobe pieces were listed in the '- <id>: <name>' format."
+        )
+
+    result["grounded"] = not result["problems"]
+    return result
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────

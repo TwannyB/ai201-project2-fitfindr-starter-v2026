@@ -17,7 +17,7 @@ import re
 
 import config
 import trace
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import search_listings, suggest_outfit, create_fit_card, check_grounding
 from generate import ModelUnavailable
 import mcp_client
 
@@ -48,6 +48,9 @@ def new_session(query: str, wardrobe: dict | None) -> dict:
         "wardrobe_checked": False,   # True once the empty / missing-category check has run
         "missing_categories": [],    # tops/bottoms/shoes the wardrobe can't supply
         "wardrobe_note": None,       # shown to the user when the wardrobe is empty or has gaps
+        "grounding": None,           # check_grounding's result for the current outfit
+        "grounding_retries": 0,      # how many times suggest_outfit was re-asked
+        "grounding_feedback": None,  # the problems passed back to suggest_outfit on a retry
         "outfit_suggestion": None,   # what suggest_outfit returned
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
@@ -158,6 +161,11 @@ def _no_results_message(parsed: dict) -> str:
 # so not owning them isn't a gap.
 _CORE_CATEGORIES = ["tops", "bottoms", "shoes"]
 
+# How many times suggest_outfit is re-asked after a failed grounding check.
+# One retry fixes most slips; more just spends calls on a model that keeps
+# making the same mistake.
+_GROUNDING_RETRIES = 1
+
 
 def _wardrobe_gaps(wardrobe: dict, selected_item: dict) -> list[str]:
     """
@@ -191,6 +199,9 @@ def run_agent(query: str, wardrobe: dict | None = None) -> dict:
         the run ended early and the later fields will still be None.
         Otherwise check session["wardrobe_note"]: set when the wardrobe is
         empty or missing tops, bottoms or shoes. The run still finishes then.
+        session["grounding"] holds check_grounding's verdict on the outfit. If
+        it stays ungrounded after one retry, the run ends with an error before
+        create_fit_card; outfit_suggestion keeps the failed answer for evals.
 
     ─────────────────────────────────────────────────────────────────────────
     TODO — build this, following the branch rule you wrote in Milestone 2.
@@ -321,10 +332,49 @@ def run_agent(query: str, wardrobe: dict | None = None) -> dict:
 
             elif session["outfit_suggestion"] is None:
                 session["outfit_suggestion"] = suggest_outfit(
-                    session["selected_item"], session["wardrobe"], session["missing_categories"]
+                    session["selected_item"], session["wardrobe"],
+                    session["missing_categories"], session["grounding_feedback"],
                 )
                 #ADD STEP TRACE HERE
-                trace.step("suggest_outfit", inputs={"selected_item": session["selected_item"], "wardrobe": session["wardrobe"], "missing_categories": session["missing_categories"]}, returned=session["outfit_suggestion"])
+                trace.step("suggest_outfit", inputs={"selected_item": session["selected_item"], "wardrobe": session["wardrobe"], "missing_categories": session["missing_categories"], "feedback": session["grounding_feedback"]}, returned=session["outfit_suggestion"])
+
+            elif session["grounding"] is None:
+                # The prompt asks for owned pieces only; this makes sure. It's
+                # code, not the model, so the same outfit always gets the same
+                # verdict.
+                result = check_grounding(session["outfit_suggestion"], session["wardrobe"])
+                session["grounding"] = result
+
+                if result["grounded"] is not False:
+                    # True, or None when skipped (empty wardrobe).
+                    trace.step("check_grounding", inputs={"cited": result["cited_ids"]},
+                               returned=result["grounded"],
+                               note=result["skipped"] or "every piece is in the wardrobe")
+
+                elif session["grounding_retries"] < _GROUNDING_RETRIES:
+                    # Ask again, telling the model exactly what was wrong.
+                    # Clearing outfit_suggestion and grounding sends the loop
+                    # back to the suggest_outfit step on the next pass.
+                    trace.step("check_grounding", inputs={"cited": result["cited_ids"]},
+                               returned=result["problems"],
+                               note="branch: ungrounded, retrying suggest_outfit with feedback")
+                    session["grounding_retries"] += 1
+                    session["grounding_feedback"] = "\n".join(result["problems"])
+                    session["outfit_suggestion"] = None
+                    session["grounding"] = None
+
+                else:
+                    # Still ungrounded after the retry. Stop rather than show
+                    # (and caption) an outfit with pieces the user doesn't own.
+                    trace.step("check_grounding", inputs={"cited": result["cited_ids"]},
+                               returned=result["problems"],
+                               note="branch: still ungrounded after retry, stopping")
+                    session["error"] = (
+                        "Couldn't build an outfit from only your saved pieces: "
+                        + " ".join(result["problems"])
+                        + " Try again, or add more pieces with: python app.py wardrobe add"
+                    )
+                    return session
 
             elif session["fit_card"] is None:
                 #ADD STEP TRACE HERE
