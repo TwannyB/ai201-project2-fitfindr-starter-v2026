@@ -67,8 +67,8 @@
 ### `suggest_outfit`
 
 - **What it does:** It takes in a new clothing item and a group of other clothing items the user already has, and returns groupings of clothing items as outfit ideas.
-- **Inputs:** `new_item` (dict) and `wardrobe`(dict)
-- **Returns:** It returns a string that describes a grouping of the new item and items from the input wardrobe that go with it and can make an outfit.
+- **Inputs:** `new_item` (dict), `wardrobe` (dict), and `missing_categories` (list of strings or None, the core categories the wardrobe can't supply; defaults to None)
+- **Returns:** It returns a string with one or two outfits. Each outfit has an `Outfit N:` name line, a `- NEW: <listing title>` line, one `- w_NNN: <name>` line per saved piece (only pieces from the wardrobe, cited by ID), and a `Vibe:` line. When `missing_categories` isn't empty, it leaves those slots out and ends with a `Missing: <categories>` line.
 - **When it has nothing:** It returns general styling advice. This happens when the wardrobe list is empty.
 
 ### `create_fit_card`

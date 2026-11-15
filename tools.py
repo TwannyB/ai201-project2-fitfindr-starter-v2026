@@ -96,9 +96,19 @@ def _describe_item(item: dict) -> str:
     return "\n".join(lines)
 
 
+# A wardrobe ID with its label punctuation: "w_003: ", "(w_003)", "w_003 ".
+# Used to keep IDs out of the fit card.
+_WARDROBE_ID_RE = re.compile(r"\(?\bw_\d{3}\b\)?:?\s*")
+
+
 def _describe_wardrobe_piece(piece: dict) -> str:
+    """
+    One prompt line per saved piece, starting "w_003: White ribbed tank top" —
+    the same "id: name" the outfit format asks the model to write back, so it
+    copies rather than translates.
+    """
     line = (
-        f"- {piece.get('name')} ({piece.get('category')}; "
+        f"{piece.get('id')}: {piece.get('name')} ({piece.get('category')}; "
         f"colors: {', '.join(piece.get('colors') or [])}; "
         f"style: {', '.join(piece.get('style_tags') or [])})"
     )
@@ -197,7 +207,11 @@ def search_listings(
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
 
-def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
+def suggest_outfit(
+    new_item: dict,
+    wardrobe: dict,
+    missing_categories: list[str] | None = None,
+) -> str:
     """
     Given a thrifted item and the user's wardrobe, suggest one or two outfits.
 
@@ -208,12 +222,24 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
         new_item: a listing dict — the item the user is considering.
         wardrobe: a wardrobe dict with an 'items' key holding a list of items.
                   **It may be empty.** Handle that.
+        missing_categories: core categories (tops, bottoms, shoes) the
+                  wardrobe can't supply, from agent._wardrobe_gaps. The prompt
+                  tells the model to leave those slots out rather than invent
+                  them. None or [] when nothing is missing.
 
     Returns:
         A non-empty string with outfit suggestions.
-        With an empty wardrobe, return general styling advice rather than
-        raising or returning "". Unit 4 has you trigger the empty wardrobe on
-        purpose, so decide now what it should do.
+        With saved items, it is grounded and line-per-piece, so the grounding
+        check (step 8) can read it:
+
+            Outfit 1: <short name>
+            - NEW: <listing title>
+            - w_003: White ribbed tank top
+            Vibe: <one sentence>
+
+        plus a final "Missing: shoes" line when missing_categories is set.
+        With an empty wardrobe, it returns general styling advice with common
+        pieces and no IDs, rather than raising or returning "".
 
     TODO:
         1. Check whether wardrobe['items'] is empty.
@@ -241,15 +267,48 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
             "each outfit gives."
         )
     else:
+        system = (
+            "You are a thrift-savvy stylist. You build outfits only from pieces "
+            "the user actually owns, plus the one new item. You never suggest "
+            "buying or adding anything else. Follow the output format exactly. "
+            "Be brief: no more than about 170 words."
+        )
         wardrobe_text = "\n".join(_describe_wardrobe_piece(p) for p in items)
+
+        if missing_categories:
+            missing = ", ".join(missing_categories)
+            missing_rule = (
+                f"- Their wardrobe has no {missing}. Leave that slot out of the "
+                "outfits instead of inventing a piece for it, and end your answer "
+                f"with this line: Missing: {missing}\n"
+            )
+        else:
+            missing_rule = ""
+
         prompt = (
             "Someone is considering this thrifted item:\n\n"
             f"{_describe_item(new_item)}\n\n"
-            "Here is what they already own:\n"
+            "Here is everything they own, one piece per line as id: name:\n"
             f"{wardrobe_text}\n\n"
-            "Suggest one or two outfits that pair the new item with specific "
-            "pieces from their wardrobe, naming each piece exactly as listed. "
-            "Only use pieces from the list above. Say what vibe each outfit gives."
+            "Suggest one or two outfits, each pairing the new item with 2 to 4 "
+            "pieces from that list.\n\n"
+            "Rules:\n"
+            "- Use only pieces from the list. The new item is the only piece "
+            "that isn't from the wardrobe.\n"
+            "- Write each wardrobe piece on its own line as its id and name, "
+            "copied exactly from the list.\n"
+            "- Don't suggest adding anything else (no extra shoes, jewelry or "
+            "layers), not even in the Vibe line.\n"
+            "- Don't add details about a piece that aren't in the list.\n"
+            f"{missing_rule}"
+            "\n"
+            "Format (the <...> parts are placeholders; repeat the block for "
+            "Outfit 2):\n\n"
+            "Outfit 1: <short name>\n"
+            "- NEW: <the new item's title>\n"
+            "- <id>: <name exactly as listed>\n"
+            "- <id>: <name exactly as listed>\n"
+            "Vibe: <one sentence about the look, naming no other pieces>\n"
         )
 
     response = generate(prompt, system=system)
@@ -303,6 +362,12 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
             "caption. Run suggest_outfit first and pass its result in."
         )
 
+    # The outfit names wardrobe pieces as "w_003: White ribbed tank top" for the
+    # grounding check. Nobody posts an ID, so strip them in code rather than
+    # asking the model not to. Strings are immutable: re.sub returns a new one
+    # and the caller's `outfit` is untouched.
+    outfit_for_caption = _WARDROBE_ID_RE.sub("", outfit)
+
     system = (
         "You write short social media captions for thrifted outfits. They "
         "sound like a real person posting their find, not a product listing. "
@@ -312,7 +377,7 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     prompt = (
         "Write a caption for this thrift find and the outfit built around it.\n\n"
         f"The item:\n{_describe_item(new_item)}\n\n"
-        f"The outfit:\n{outfit}\n\n"
+        f"The outfit:\n{outfit_for_caption}\n\n"
         "Rules:\n"
         "- Two to four sentences.\n"
         "- Mention the item, its price, and the platform it's from, once each.\n"

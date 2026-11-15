@@ -321,10 +321,10 @@ def run_agent(query: str, wardrobe: dict | None = None) -> dict:
 
             elif session["outfit_suggestion"] is None:
                 session["outfit_suggestion"] = suggest_outfit(
-                    session["selected_item"], session["wardrobe"]
+                    session["selected_item"], session["wardrobe"], session["missing_categories"]
                 )
                 #ADD STEP TRACE HERE
-                trace.step("suggest_outfit", inputs={"selected_item": session["selected_item"], "wardrobe": session["wardrobe"]}, returned=session["outfit_suggestion"])
+                trace.step("suggest_outfit", inputs={"selected_item": session["selected_item"], "wardrobe": session["wardrobe"], "missing_categories": session["missing_categories"]}, returned=session["outfit_suggestion"])
 
             elif session["fit_card"] is None:
                 #ADD STEP TRACE HERE
