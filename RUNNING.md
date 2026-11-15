@@ -1,13 +1,83 @@
 # Running FitFindr
 
-Everything about how the starter works and how to use it.
+**Just want to see it work?** It's live at **https://fitfindr-ppek.onrender.com**
+— jump to [Try the hosted version](#try-the-hosted-version). To run it
+yourself, follow the Quick start. Everything after that is reference.
+
+---
+
+## Quick start
+
+You need Python 3.11, 3.12 or 3.13 (**not** 3.14), Git, and a Gemini API key
+from [aistudio.google.com](https://aistudio.google.com) (free).
+
+**1. Get the code and install** — from the folder you want it in:
+
+```powershell
+# Windows (PowerShell)
+git clone https://github.com/TwannyB/ai201-project2-fitfindr-starter-v2026.git fitfindr
+cd fitfindr
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env      # then open .env and paste your key after GEMINI_API_KEY=
+```
+
+```bash
+# macOS / Linux
+git clone https://github.com/TwannyB/ai201-project2-fitfindr-starter-v2026.git fitfindr
+cd fitfindr
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env        # then open .env and paste your key after GEMINI_API_KEY=
+```
+
+**2. Check the setup.** `python test.py` checks your Python version, packages,
+API key, and makes one real model call. Continue when it passes.
+
+**3. Ask it something** — **single quotes**, always (see the warning under
+[Your first five minutes](#your-first-five-minutes)):
+
+```
+python app.py ask 'vintage graphic tee under $30'
+```
+
+You get a listing, one or two outfits made from your saved wardrobe (each
+piece cited by ID, like `- w_003: White ribbed tank top`), and a caption. Your
+wardrobe lives in `data/wardrobe.json`, which doesn't exist until this first
+run creates it from a demo wardrobe. Then edit it:
+
+```
+python app.py wardrobe list
+python app.py wardrobe add          # prompts for each field
+```
+
+**4. Run it as a server** (optional) — `python serve.py`, then send requests
+from a **second** terminal: the same commands as
+[Try the hosted version](#try-the-hosted-version), with
+`https://fitfindr-ppek.onrender.com` replaced by `http://localhost:5000`.
+
+**5. Read what it recorded.** Every run, including failed ones, adds a line to
+`logs/runs.jsonl`. From the project folder, in either shell:
+
+```
+python -c "import json; [print(r['ts'], r['status'], r['duration_ms'], r.get('model_calls'), r['query']) for r in map(json.loads, open('logs/runs.jsonl', encoding='utf-8'))]"
+```
+
+> Activate the virtual environment every time you open a new terminal: you
+> should see `(.venv)` at the start of the prompt. The log command above only
+> works from the project folder, where `logs/` is.
 
 ---
 
 ## Before your first class
 
-Setup happens **before class**. The [environment setup page](../pages/ide_setup)
-has the per-operating-system commands and the exact versions.
+*(The original course setup notes, kept for reference. The Quick start above
+covers the same steps.)*
+
+Setup happens **before class**. Per-operating-system commands are in the
+Quick start above.
 
 **Same API key you set up in unit 1.** Nothing new to sign up for. There is one
 new package — the MCP SDK, for unit 4 — and it installs with everything else.
@@ -62,9 +132,9 @@ python app.py ask 'vintage graphic tee under $30'
 > and substitutes nothing. You get results with no price ceiling and no error
 > saying so. Single quotes are literal in PowerShell, bash and zsh alike.
 
-That last one runs the loop. All three tools are stubs, so it will tell you the
-loop isn't built yet. **That's the correct starting position** — it runs, and it
-does nothing.
+That last one runs the whole loop: search, read your saved wardrobe, suggest
+outfits built only from pieces you own (checked by code before you see them),
+and write a caption. Add `--trace` to watch each step and why it was taken.
 
 ---
 
@@ -138,6 +208,10 @@ curl -X POST http://localhost:5000/ask \
   -d '{"query": "vintage graphic tee under $30"}'
 ```
 
+That's bash. On Windows, use the PowerShell requests in
+[Try the hosted version](#try-the-hosted-version) with the URL swapped for
+`http://localhost:5000`.
+
 On a host, the start command is:
 
 ```bash
@@ -174,14 +248,14 @@ needs your repo and your API key:
    `render.yaml` and shows one web service, `fitfindr`, on the free plan.
 3. It asks for **`GEMINI_API_KEY`** (marked `sync: false`, so it's never in the
    repo). Paste the same key that's in your `.env`.
-4. **Apply.** The first build takes a few minutes. When the log says the
-   service is live, check it:
-
-```bash
-curl https://fitfindr-ppek.onrender.com/health
-```
+4. **Apply.** The first build takes a few minutes. Render only marks the
+   deploy **Live** after `/health` answers, so "Live" in the Events tab means
+   the check already passed. To check it yourself, see
+   [Try the hosted version](#try-the-hosted-version).
 
 Every push to `main` redeploys automatically.
+
+
 
 ### What `render.yaml` sets, and why
 
@@ -193,22 +267,72 @@ Every push to `main` redeploys automatically.
 | `PYTHON_VERSION = 3.13` | `requirements.txt` supports 3.11–3.13, not 3.14. If the build log says the version isn't found, set the full version (e.g. `3.13.5`) |
 | `GEMINI_API_KEY` | The only secret. Set in the dashboard, never committed |
 
-### Asking it something
+### Try the hosted version
 
-With the **demo wardrobe** (what `data/wardrobe.json` reseeds to):
+> **The first request can take about a minute.** The free tier sleeps after
+> 15 minutes idle and the next request wakes it, then the agent's own model
+> calls take 5–20 s more. The PowerShell examples set `-TimeoutSec 120` and the
+> bash ones `--max-time 120` so a cold start isn't mistaken for a failure.
+>
+> **Keep the JSON in single quotes**, in both shells. Inside double quotes,
+> PowerShell reads `$30` as a variable and silently drops it, so the query
+> loses its price limit with no error.
+
+Windows readers: use the **PowerShell** blocks. In Windows PowerShell, `curl`
+is a different command, and even `curl.exe` breaks these JSON bodies (PowerShell
+5.1 strips the inner quotes when passing them to a program).
+
+**1. Is it awake?** Expect `status: ok`.
+
+```powershell
+Invoke-RestMethod https://fitfindr-ppek.onrender.com/health -TimeoutSec 120
+```
 
 ```bash
-curl -X POST https://fitfindr-ppek.onrender.com/ask \
+curl --max-time 120 https://fitfindr-ppek.onrender.com/health
+```
+
+**2. Ask it something, with the demo wardrobe** (what `data/wardrobe.json`
+reseeds to on Render). Expect `error` empty, outfits with `- w_NNN:` lines, and
+a caption with no IDs in it.
+
+```powershell
+$r = Invoke-RestMethod -Method Post -Uri https://fitfindr-ppek.onrender.com/ask -ContentType 'application/json' -TimeoutSec 120 -Body '{"query": "vintage graphic tee under $30"}'
+$r.outfit_suggestion
+$r.fit_card
+$r.grounding.cited_ids
+```
+
+```bash
+curl --max-time 120 -X POST https://fitfindr-ppek.onrender.com/ask \
   -H 'Content-Type: application/json' \
   -d '{"query": "vintage graphic tee under $30"}'
 ```
 
-With **your own wardrobe**, sent with the request. Nothing is stored; it's
-checked with the same rules as `app.py wardrobe add` (IDs like `w_001`, one of
-five categories, at least one color, at most 50 items):
+PowerShell prints lists nested inside the response as `System.Object[]`.
+That's display only; print the field (`$r.grounding.cited_ids`) or the whole
+thing with `$r | ConvertTo-Json -Depth 6`.
+
+**3. With your own wardrobe**, sent with the request. Nothing is stored; it's
+checked with the same rules as `app.py wardrobe add`: IDs like `w_001`, one of
+tops/bottoms/outerwear/shoes/accessories, at least one color, at most 50 items.
+Expect outfits using only these three pieces.
+
+```powershell
+$body = @'
+{"query": "denim jacket under $50", "wardrobe": {"items": [
+  {"id": "w_001", "name": "Cream cable-knit sweater", "category": "tops", "colors": ["cream"], "style_tags": ["cozy"]},
+  {"id": "w_002", "name": "Black straight-leg trousers", "category": "bottoms", "colors": ["black"], "style_tags": []},
+  {"id": "w_003", "name": "Brown suede loafers", "category": "shoes", "colors": ["brown"], "style_tags": []}]}}
+'@
+$r = Invoke-RestMethod -Method Post -Uri https://fitfindr-ppek.onrender.com/ask -ContentType 'application/json' -TimeoutSec 120 -Body $body
+$r.outfit_suggestion
+```
+
+The closing `'@` must be at the very start of its line.
 
 ```bash
-curl -X POST https://fitfindr-ppek.onrender.com/ask \
+curl --max-time 120 -X POST https://fitfindr-ppek.onrender.com/ask \
   -H 'Content-Type: application/json' \
   -d '{"query": "denim jacket under $50", "wardrobe": {"items": [
         {"id": "w_001", "name": "Cream cable-knit sweater", "category": "tops", "colors": ["cream"], "style_tags": ["cozy"]},
@@ -216,8 +340,34 @@ curl -X POST https://fitfindr-ppek.onrender.com/ask \
         {"id": "w_003", "name": "Brown suede loafers", "category": "shoes", "colors": ["brown"], "style_tags": []}]}}'
 ```
 
-An invalid wardrobe comes back as `400` with a `problems` list naming each
-item's mistakes, instead of reaching the agent.
+**4. A wardrobe it should reject.** An invalid wardrobe comes back as `400`
+with a `problems` list naming each mistake, and never reaches the agent. This
+one has a bad ID and a category that doesn't exist:
+
+```powershell
+try {
+  Invoke-RestMethod -Method Post -Uri https://fitfindr-ppek.onrender.com/ask -ContentType 'application/json' -TimeoutSec 120 -Body '{"query": "denim jacket", "wardrobe": {"items": [{"id": "shirt1", "name": "Cap", "category": "hats", "colors": ["black"], "style_tags": []}]}}'
+} catch {
+  # Windows PowerShell throws on a 400; this reads the body it came with.
+  $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+  $reader.ReadToEnd()
+}
+```
+
+```bash
+curl --max-time 120 -X POST https://fitfindr-ppek.onrender.com/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "denim jacket", "wardrobe": {"items": [{"id": "shirt1", "name": "Cap", "category": "hats", "colors": ["black"], "style_tags": []}]}}'
+```
+
+Expect:
+
+```
+{"error":"The wardrobe you sent isn't valid.","problems":["Item 1: Item field \"id\" must look like w_001 (got 'shirt1').","Item 1: Item field \"category\" must be one of: tops, bottoms, outerwear, shoes, accessories."]}
+```
+
+Each of requests 2–4 leaves one JSON line in Render's **Logs** tab (`status`
+`ok`, `ok`, `rejected`). `/health` isn't logged.
 
 ### What's different from running it locally
 
@@ -240,10 +390,10 @@ they reach Render's Logs tab. The fields are documented at the top of
 `query`, `duration_ms`, `error`, `wardrobe_source` (saved/request/empty),
 `grounded`, `grounding_retries`, `model_calls`, `prompt_tokens`, `output_tokens`.
 
-Read them back:
+Read them back, from the project folder, in either shell:
 
-```bash
-python -c "import json; [print(r['ts'], r['status'], r['duration_ms'], r.get('model_calls')) for r in map(json.loads, open('logs/runs.jsonl', encoding='utf-8'))]"
+```
+python -c "import json; [print(r['ts'], r['status'], r['duration_ms'], r.get('model_calls'), r['query']) for r in map(json.loads, open('logs/runs.jsonl', encoding='utf-8'))]"
 ```
 
 `logs/` is in `.gitignore`: the records are runtime output. Copy the entries
