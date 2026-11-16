@@ -14,18 +14,18 @@ criterion's wording using the evidence underneath, then count.
 
 | Trial | Run 1 | Run 2 | Run 3 |
 |---|---|---|---|
-| add 1 |   |   |   |
-| add 2 |   |   |   |
-| add 3 |   |   |   |
-| add 4 |   |   |   |
-| add 5 |   |   |   |
-| remove 1 |   |   |   |
-| remove 2 |   |   |   |
-| remove 3 |   |   |   |
-| remove 4 |   |   |   |
-| remove 5 |   |   |   |
+| add 1 | PASS | PASS | PASS |
+| add 2 | PASS | PASS | PASS |
+| add 3 | PASS | PASS | PASS |
+| add 4 | PASS | PASS | PASS |
+| add 5 | PASS | PASS | PASS |
+| remove 1 | PASS | PASS | PASS |
+| remove 2 | PASS | PASS | PASS |
+| remove 3 | PASS | PASS | PASS |
+| remove 4 | PASS | PASS | PASS |
+| remove 5 | PASS | PASS | PASS |
 
-**Verdict:** ___ / 30
+**Verdict:** 30 / 30
 
 ### Criterion 1, run 1
 
@@ -2121,13 +2121,15 @@ w_010  accessories  black                 Black crossbody bag
 
 | Trial | Run 1 | Run 2 | Run 3 |
 |---|---|---|---|
-| trial 1 |   |   |   |
-| trial 2 |   |   |   |
-| trial 3 |   |   |   |
-| trial 4 |   |   |   |
-| trial 5 |   |   |   |
+| trial 1 | PASS | PASS | VOID |
+| trial 2 | PASS | PASS | VOID |
+| trial 3 | PASS | PASS | VOID |
+| trial 4 | PASS | PASS | VOID |
+| trial 5 | PASS | PASS | VOID |
 
-**Verdict:** ___ / 15
+**Verdict:** 10 / 10 graded trials pass; run 3 (5 trials) is void, so 15/15 is not yet shown
+
+**Run 3 is void, not failed.** Its setup step `wardrobe remove w_007` crashed with `PermissionError: [WinError 5] Access is denied` (renaming `wardrobe.json.tmp` over `wardrobe.json`), so w_007 was never removed and the agent was given a wardrobe that still had Chunky white sneakers. Every run-3 trial cites w_007, which is in the wardrobe it loaded, so the outfits are grounded in what the agent saw, but the trial the criterion describes (both shoes removed) never ran. Runs 1 and 2: every piece line cites a loaded ID with its exact saved name, no piece line lacks an ID, neither w_007 nor w_008 appears, and every outfit ends with `Missing: shoes`. Run 3 needs re-running: `python run_capstone_eval.py --criteria 2 --runs 1 --label before-rerun`.
 
 ### Criterion 2, run 1
 
@@ -3716,13 +3718,13 @@ Vibe: A textured monochrome layering approach that keeps the vintage aesthetic f
 
 | Trial | Run 1 | Run 2 | Run 3 |
 |---|---|---|---|
-| trial 1 |   |   |   |
-| trial 2 |   |   |   |
-| trial 3 |   |   |   |
-| trial 4 |   |   |   |
-| trial 5 |   |   |   |
+| trial 1 | PASS | PASS | PASS |
+| trial 2 | PASS | PASS | PASS |
+| trial 3 | PASS | PASS | PASS |
+| trial 4 | PASS | PASS | PASS |
+| trial 5 | PASS | PASS | PASS |
 
-**Verdict:** ___ / 15
+**Verdict:** 15 / 15
 
 ### Criterion 3, run 1
 
@@ -4478,13 +4480,13 @@ Pair it with a ribbed olive green tank top, a black pleated tennis skirt, and ch
 
 | Trial | Run 1 | Run 2 | Run 3 |
 |---|---|---|---|
-| trial 1 |   |   |   |
-| trial 2 |   |   |   |
-| trial 3 |   |   |   |
-| trial 4 |   |   |   |
-| trial 5 |   |   |   |
+| trial 1 | PASS | PASS | PASS |
+| trial 2 | PASS | PASS | PASS |
+| trial 3 | PASS | PASS | PASS |
+| trial 4 | PASS | PASS | PASS |
+| trial 5 | PASS | PASS | PASS |
 
-**Verdict:** ___ / 15
+**Verdict:** 15 / 15
 
 ### Criterion 4, run 1
 
@@ -4888,14 +4890,16 @@ Output:
 
 | Trial | Run 1 | Run 2 | Run 3 |
 |---|---|---|---|
-| case A |   |   |   |
-| case B |   |   |   |
-| case C |   |   |   |
-| case D |   |   |   |
-| case E |   |   |   |
-| case F |   |   |   |
+| case A | PASS | PASS | FAIL |
+| case B | PASS | PASS | PASS |
+| case C | PASS | PASS | PASS |
+| case D | PASS | PASS | PASS |
+| case E | PASS | PASS | PASS |
+| case F | PASS | PASS | PASS |
 
-**Verdict:** ___ / 18
+**Verdict:** 17 / 18
+
+**Run 3, case A failed.** A valid item should have been saved, but `wardrobe add` exited 1 with `PermissionError: [WinError 5] Access is denied` while renaming `wardrobe.json.tmp` over `wardrobe.json`. Nothing was saved, and neither `Added:` nor `Not saved:` was shown. It is the same crash that voided criterion 2's run 3: the atomic save in `utils/wardrobe_store.py` (`os.replace`) fails when another process has `wardrobe.json` open at that moment (on Windows, usually antivirus or the search indexer scanning the file just written). Run 3's case F got `w_011` instead of `w_012` as a result.
 
 ### Criterion 5, run 1
 
