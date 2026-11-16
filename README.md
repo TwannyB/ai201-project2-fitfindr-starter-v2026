@@ -603,32 +603,47 @@ The five capstone criteria are in `criteria.md` → "Capstone criteria". Each on
 
 All rows are scored from `results/run_2026-11-15_2327_capstone_before.md`, written by `run_capstone_eval.py`. Every step in it is a real `python app.py …` command in its own process, with response caching off. The one exception is criterion 2's run 3. In the original run, its setup step `wardrobe remove w_007` crashed with `PermissionError`, so the sneakers were never removed, and the agent was styling a wardrobe that still had them. That run was void, not failed, so I re-ran it on the same code: `results/run_2026-11-16_0030_capstone_before-rerun.md`. Its setup succeeded, and all 5 trials passed. Criterion 5's run-3 miss is the same crash, hitting a valid `wardrobe add`.
 
-**Real output from one trial of each criterion**, copied from that results file:
+**Real output from one trial of each criterion.** Each block below is copied unedited from the results file: the console output of the command named above it, or, where marked, the text the harness typed in or read from `data/wardrobe.json`.
 
-**Criterion 1: adding an item** (run 1, add 1). Prompts from `app.py` (`wardrobe add`); the item is cleaned by `utils/wardrobe_store.py::normalize_item` and saved by `add_item` → `save_wardrobe`.
+**Criterion 1: adding an item** (run 1, add 1). `python app.py wardrobe add`: the prompts and the `Added:` lines are printed by `app.py` (the `wardrobe add` command); the item is cleaned by `utils/wardrobe_store.py::normalize_item` and saved by `add_item`, which calls `save_wardrobe`.
+
+Typed in at the prompts:
 
 ```
-Typed input:
 Navy Linen Shirt
 Tops
 Navy, navy, White
 Minimal, summer
 Runs large
+```
 
-Added:
+Console output:
+
+```
+Enter the details of the item to add to your wardrobe.
+Name: Category (tops, bottoms, outerwear, shoes, accessories): Colors (comma-separated): Style tags (comma-separated, optional): Notes (optional): Added:
   w_011  Navy Linen Shirt
         category:   tops
         colors:     navy, white
         style tags: minimal, summer
         notes:      Runs large
+```
 
-Stored in data/wardrobe.json:
+The item as `save_wardrobe` wrote it to `data/wardrobe.json`:
+
+```
 {"name": "Navy Linen Shirt", "category": "tops", "colors": ["navy", "white"], "style_tags": ["minimal", "summer"], "notes": "Runs large", "id": "w_011"}
 ```
 
-**Criterion 2: grounded outfit** (`denim jacket under $50`, run 1, trial 1, with w_007 and w_008 removed). The outfit is written by `tools.py::suggest_outfit`, checked by `tools.py::check_grounding`, and both steps are run by `agent.py::run_agent`.
+**Criterion 2: grounded outfit** (run 1, trial 1, with w_007 and w_008 removed). `python app.py ask 'denim jacket under $50'`: trace lines from `trace.py::step`, called by `agent.py::run_agent`; the outfit is written by `tools.py::suggest_outfit` and checked by `tools.py::check_grounding`.
 
 ```
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: 7 items: Denim Jacket — Light Wash, Cropped, High-Waisted Denim Shorts — Cutoff, Denim Vest — Medium Wash, Studded … +4 more
+[2] get_wardrobe
+      in:  dict with keys: 
+      out: dict with keys: items
 [3] check_wardrobe
       in:  dict with keys: items, selected_category
       out: 1 items: shoes…
@@ -640,8 +655,13 @@ Stored in data/wardrobe.json:
       in:  dict with keys: cited
       out: True
       →    every piece is in the wardrobe
+[6] create_fit_card
+      in:  dict with keys: outfit_suggestion, selected_item
+      out: Scored this Wrangler denim jacket in a light wash for $42.0 on poshmark, and it has the best structured should…
 
-Outfit 1: Double Denim Streetwear
+  Found:    Denim Jacket — Light Wash, Cropped — $42.0 on poshmark
+
+  Outfit:   Outfit 1: Double Denim Streetwear
 - NEW: Denim Jacket — Light Wash, Cropped
 - w_001: Baggy straight-leg jeans, dark wash
 - w_003: White ribbed tank top
@@ -656,33 +676,71 @@ Outfit 2: Casual Khaki Layer
 Vibe: A timeless, balanced mix of classic streetwear and minimal earth tones.
 
 Missing: shoes
+
+  Fit card: Scored this Wrangler denim jacket in a light wash for $42.0 on poshmark, and it has the best structured shoulders! I styled it for a contrasting Canadian tuxedo vibe playing with different denim washes and relaxed proportions by adding baggy straight-leg jeans, a white ribbed tank top, and a black crossbody bag. For a second look, it brings a timeless, balanced mix of classic streetwear and minimal earth tones when paired with wide-leg khaki trousers, a white ribbed tank top, and a brown leather belt.
+
+  Note:     Your wardrobe has no shoes, so the outfit may be incomplete. Add some with: python app.py wardrobe add
+
+2 model calls this session, 1028 prompt + 261 output tokens
 ```
 
-The setup step that voided run 3 (`python app.py wardrobe remove w_007`, exit 1):
+The setup step that voided the original run 3, `python app.py wardrobe remove w_007` (exit 1). The error comes from `os.replace` in `utils/wardrobe_store.py::save_wardrobe`, printed by `app.py::main`. Typed in:
 
 ```
-Remove this item? (y/n):
-PermissionError: [WinError 5] Access is denied: '...\data\wardrobe.json.tmp' -> '...\data\wardrobe.json'
+y
 ```
 
-**Criterion 3: empty wardrobe** (`denim jacket under $50 --empty-wardrobe`, run 1, trial 1). The general-advice prompt is in `tools.py::suggest_outfit`; the note is set by `agent.py::run_agent` at the `check_wardrobe` branch.
+Console output:
 
 ```
+w_007  Chunky white sneakers
+        category:   shoes
+        colors:     white
+        style tags: sneakers, chunky, streetwear
+        notes:      -
+Remove this item? (y/n): 
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Antoine\\PersonalProjects&Learning\\CodePath\\ai201-project2-fitfindr-starter-v2026\\utils\\..\\data\\wardrobe.json.tmp' -> 'C:\\Users\\Antoine\\PersonalProjects&Learning\\CodePath\\ai201-project2-fitfindr-starter-v2026\\utils\\..\\data\\wardrobe.json'
+```
+
+**Criterion 3: empty wardrobe** (run 1, trial 1). `python app.py ask 'denim jacket under $50' --empty-wardrobe`: trace from `agent.py::run_agent`; the general-advice prompt is in `tools.py::suggest_outfit`; the `Note:` is set by `agent.py::run_agent` at the `check_wardrobe` branch.
+
+```
+(running with an empty wardrobe)
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: 7 items: Denim Jacket — Light Wash, Cropped, High-Waisted Denim Shorts — Cutoff, Denim Vest — Medium Wash, Studded … +4 more
 [2] check_wardrobe
       in:  dict with keys: items, selected_category
       out: [] (empty)
       →    branch: empty wardrobe, continuing with general advice
-...
+[3] suggest_outfit
+      in:  dict with keys: selected_item, wardrobe, missing_categories, feedback
+      out: Outfit 1: Layer it over a black ribbed turtleneck bodysuit, pair with high-waisted olive green utility pants, …
 [4] check_grounding
       in:  dict with keys: cited
       →    empty wardrobe: general advice isn't meant to be grounded
+[5] create_fit_card
+      in:  dict with keys: outfit_suggestion, selected_item
+      out: Found this vintage Wrangler denim jacket on Poshmark for $42.00, and it's the ultimate blank canvas with great…
+
+  Found:    Denim Jacket — Light Wash, Cropped — $42.0 on poshmark
+
+  Outfit:   Outfit 1: Layer it over a black ribbed turtleneck bodysuit, pair with high-waisted olive green utility pants, and finish with chunky black loafers. 
+Vibe: 90s streetwear meets smart-casual. 
+
+Outfit 2: Throw it on over a white cotton baby tee and a black-and-white plaid tennis skirt, add white crew socks, and lace-up retro sneakers. 
+Vibe: Effortless skater-girl chic. 
+
+Both are easy to build with basics you likely already own!
 
   Fit card: Found this vintage Wrangler denim jacket on Poshmark for $42.00, and it's the ultimate blank canvas with great structured shoulders. I paired the light blue cropped outerwear over a black ribbed turtleneck bodysuit, high-waisted olive green utility pants, and chunky black loafers for a true 90s streetwear meets smart-casual vibe.
 
   Note:     Your wardrobe is empty, so these are general styling ideas. Add your clothes with: python app.py wardrobe add
+
+2 model calls this session, 549 prompt + 182 output tokens
 ```
 
-**Criterion 4: corrupt wardrobe file** (`denim jacket under $50` with `{"items": [broken` in `data/wardrobe.json`, run 1, trial 1, exit 0). The `get_wardrobe` call over MCP fails, and `agent.py::run_agent` stops with this message.
+**Criterion 4: corrupt wardrobe file** (run 1, trial 1, exit 0, with `data/wardrobe.json` containing `{"items": [broken`). `python app.py ask 'denim jacket under $50'`: the `get_wardrobe` call through `mcp_client.call_tool` fails, and `agent.py::run_agent` stops with this message.
 
 ```
 [1] search_listings
@@ -697,23 +755,37 @@ PermissionError: [WinError 5] Access is denied: '...\data\wardrobe.json.tmp' -> 
 0 model calls this session
 ```
 
-**Criterion 5: validation** (run 1, case B, whitespace-only name). Rejected by `utils/wardrobe_store.py::validate_item`, called from `add_item`.
+**Criterion 5: validation** (run 1, case B, whitespace-only name). `python app.py wardrobe add`: rejected by `utils/wardrobe_store.py::validate_item`, called from `add_item`; `Not saved:` is printed by `app.py`. Typed in (the name line is three spaces):
 
 ```
-Not saved:
+   
+tops
+red
+```
+
+Console output:
+
+```
+Enter the details of the item to add to your wardrobe.
+Name: Category (tops, bottoms, outerwear, shoes, accessories): Colors (comma-separated): Style tags (comma-separated, optional): Notes (optional): Not saved:
   - Item field "name" cannot be empty.
 ```
 
-And the miss (run 3, case A, a valid item with repeated colors and tags, exit 1):
+And the miss (run 3, case A, exit 1): a valid item that should have been saved. Same `PermissionError` from `utils/wardrobe_store.py::save_wardrobe`, printed by `app.py::main`. Typed in:
 
 ```
-Typed input:
 Striped Tee
 tops
   Red, red , NAVY, navy 
  Casual, casual,  STRIPED 
+```
 
-PermissionError: [WinError 5] Access is denied: '...\data\wardrobe.json.tmp' -> '...\data\wardrobe.json'
+Console output:
+
+```
+Enter the details of the item to add to your wardrobe.
+Name: Category (tops, bottoms, outerwear, shoes, accessories): Colors (comma-separated): Style tags (comma-separated, optional): Notes (optional): 
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Antoine\\PersonalProjects&Learning\\CodePath\\ai201-project2-fitfindr-starter-v2026\\utils\\..\\data\\wardrobe.json.tmp' -> 'C:\\Users\\Antoine\\PersonalProjects&Learning\\CodePath\\ai201-project2-fitfindr-starter-v2026\\utils\\..\\data\\wardrobe.json'
 ```
 
 ## Capstone Run Log — After
