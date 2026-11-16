@@ -788,6 +788,66 @@ Name: Category (tops, bottoms, outerwear, shoes, accessories): Colors (comma-sep
 PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Antoine\\PersonalProjects&Learning\\CodePath\\ai201-project2-fitfindr-starter-v2026\\utils\\..\\data\\wardrobe.json.tmp' -> 'C:\\Users\\Antoine\\PersonalProjects&Learning\\CodePath\\ai201-project2-fitfindr-starter-v2026\\utils\\..\\data\\wardrobe.json'
 ```
 
-## Capstone Run Log — After
+## Verdicts and Diagnoses
 
-<!-- python run_capstone_eval.py --label after, graded the same way, same table. -->
+### How I decided
+
+1. I checked to make sure that IDs matched the next_id value, that the stored JSON and wardrobe list command's output described the same wardrobe, and that after removals, the correctd IDs disappeared and the end state was the same as the 10 demo items I started with. 
+
+2. I checked if every piece cited an ID from the wardrobe IDs loaded and that the name only used words used to describe it in the wardrobe. I also made sure that none of the lines lacked an ID, that missing items from the wardrobe(w_007 and w_008) didn't appear. The setup crashed on run 3, so the code had to be re-ran.
+
+3. I checked if the exact note was there and the loop process didn't proceed.
+
+4. I checked if the exact error message to the user was displayed with the exit 0 and no traceback. 
+
+5. I checked that for each run, all 6 cases were passed, but one failed in the third run.
+
+
+### Diagnoses
+
+Criterion 5: The failure happened during case A of the run, when the file was saved, which was when the save_wardrobe function was called. When the update swap happened(done with os.replace), a PermissionError occurs on Windows if another process has the wardrobe.json open during the process. The result on the user end was an exit 1 with neigher 'Added' nor 'Not saved' so the user couldn't tell whether the item was saved.
+
+
+## Capstone Improvement
+
+**What I changed:**
+After the graded before run found the failure, I had Claude change save_wardrobe so that it retries the file swap a few times when Windows reports that the file is locked and reports the error if the lock doesn't clear. 
+**Which failure it was meant to fix:**
+This was meant to fix the failure in criterion 5 run 3 for case A, as well as the crash that voided criterion 2's run 3. 
+
+### Capstone Run Log — After
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1.  Adding, removing, and persisting wardrobe items | 30/30 | 10/10 | 10/10 | 10/10 | MET (30/30) |
+| 2.  Grounded outfit suggestions | 15/15 | 5/5 | 5/5 | 5/5 | MET (15/15) |
+| 3.  Empty wardrobe behavior | 15/15 | 5/5 | 5/5 | 5/5 | MET (15/15) |
+| 4.  Corrupt wardrobe file handling | 15/15 | 5/5 | 5/5 | 5/5 | MET (15/15) |
+| 5.  Validation and normalization when adding items | 18/18 | 6/6 | 6/6 | 6/6 | MET (18/18) |
+
+All rows are scored from `results/run_2026-11-16_0129_capstone_after.md`, written by `run_capstone_eval.py` with the same procedures and grading rules as Capstone Run Log — Before. No run was voided: every setup step exited 0, and `PermissionError` appears nowhere in the file. Criterion 2's run 1, trial 4 needed one grounding retry: the first outfit copied the prompt's item description into a piece name (`w_005: Black cropped zip hoodie (tops; colors: …`), `tools.py::check_grounding` flagged it, and `agent.py::run_agent` retried `suggest_outfit` with feedback. The retried outfit passed, and the criterion grades the final output.
+
+**Criterion 5, run 3, case A, the case that failed before.** `python app.py wardrobe add`, exit 0; printed by `app.py`, saved by `utils/wardrobe_store.py::save_wardrobe`. Typed in:
+
+```
+Striped Tee
+tops
+  Red, red , NAVY, navy 
+ Casual, casual,  STRIPED 
+```
+
+Console output:
+
+```
+Enter the details of the item to add to your wardrobe.
+Name: Category (tops, bottoms, outerwear, shoes, accessories): Colors (comma-separated): Style tags (comma-separated, optional): Notes (optional): Added:
+  w_011  Striped Tee
+        category:   tops
+        colors:     red, navy
+        style tags: casual, striped
+        notes:      -
+```
+
+**Did it help, and how do I know:**
+Criterion 5 did go from 17/18 to 18/18, and there weren't any PermissionErrors this time, but the crash happened to about 4%
+of saves, so it could be an issue of pure luck(according to Claude). There's not enough evidence to completely confirm that the fix worked, but it did make the saving process more robust.

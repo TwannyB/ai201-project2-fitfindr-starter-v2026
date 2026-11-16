@@ -190,7 +190,7 @@ def save_wardrobe(wardrobe: dict, path: Optional[str] = None) -> None:
     # Atomic, so a crash never leaves a half-written wardrobe. On Windows the
     # rename fails with PermissionError while another process (antivirus, the
     # search indexer) briefly has wardrobe.json open; the capstone "before"
-    # run hit this 2 times in about 80 saves. The lock clears within
+    # run hit this 2 times in 51 saves. The lock clears within
     # milliseconds, so retry a few times before giving up.
     for attempt in range(_REPLACE_ATTEMPTS):
         try:
