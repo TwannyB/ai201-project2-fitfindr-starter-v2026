@@ -851,3 +851,34 @@ Name: Category (tops, bottoms, outerwear, shoes, accessories): Colors (comma-sep
 **Did it help, and how do I know:**
 Criterion 5 did go from 17/18 to 18/18, and there weren't any PermissionErrors this time, but the crash happened to about 4%
 of saves, so it could be an issue of pure luck(according to Claude). There's not enough evidence to completely confirm that the fix worked, but it did make the saving process more robust.
+
+### What It Costs
+100 people × 3 runs = 300 runs/day
+tokens:  300 × 1,062 prompt = 318,600 prompt tokens
+         300 ×   224 output =  67,200 output tokens
+calls:   300 × 2 = 600 model calls/day
+dollars: 318,600 / 1,000,000 × $0.3(input price) + 67,200 / 1,000,000 × $2.5(output price) = $0.26/day
+
+### What's Still Broken
+All of the criterion were met, meaning that some were likely too low. 
+Criterion 2 was the weakest, since it uses one wardrobe and two queries and nothing ever forced the "couldn't build" path. The model saw the same 8 items each time, so 15/15 says litte about the system's ability to deal with wardrobes it hasn't seen. To improve it, a second test wardrobe with unusual names could be added and used.
+
+It can also be argued that criterions 3 and 4 were deterministic code paths, so 15/15 was already likely. 
+
+If I could work on this project for another unit, I'd improve it so that the deployed app can actually keep a wardrobe, 
+since Render's version is wiped on every restart. The original goal of the extension was to create a persistent personal 
+wardrobe, and it doesn't persist in production. 
+
+### How I Used AI
+
+**Moment 1**
+
+- *What I asked for:* I implemented MCP exposure, agent loop changes, and grounded generation, then had Claude review and fix
+- *What came back:* Claude reviewed and fixed my code.
+- *What I changed:* I ran the commands Claude made to make sure that the new additions had their intended effects.
+
+**Moment 2**
+
+- *What I asked for:* I wrote the five criteria and asked Claude ot check them for testability and implement a testing harness.
+- *What came back:* Claude edited and suggested details I should add and how the criteria should be tested. 
+- *What I changed:* I reviewed Claude's plan to test the criteria and ran the tests.
