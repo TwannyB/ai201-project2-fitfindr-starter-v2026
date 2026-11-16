@@ -25,6 +25,7 @@ Thumbs.db
 # Saved wardrobe: runtime state, regenerated from the example wardrobe when missing
 data/wardrobe.json
 data/wardrobe.json.tmp
+data/wardrobe.json.eval-backup
 
 # Run records (run_log.py): runtime output, copied into the README by hand
 logs/
