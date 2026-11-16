@@ -588,3 +588,134 @@ HTTP health check failed (timed out after 5 seconds) while running your code.
 **In money:** the API key is on Google's free tier with no billing, so the actual spend for these runs was **$0**. The cost that counts is quota: each run uses 2 of the free tier's 15 requests per minute, and `generate.py` paces calls to stay under that limit. A paid-tier dollar figure would be the averages above multiplied by the model's per-token prices: `python measure_cost.py summarize logs/render_logs.txt --price-in <$ per 1M input> --price-out <$ per 1M output>`.
 
 **Time varies more than tokens.** The first `/ask` after the threading fix took 21 s, against 9.8–11.2 s for these ten. That's most likely a freshly started instance warming up. It's one reason the measurement averages ten runs rather than reporting one.
+
+## Capstone Run Log — Before
+
+The five capstone criteria are in `criteria.md` → "Capstone criteria". Each one has three runs, and the cells count passes out of the trials in that run (criterion 1 counts operations: 5 adds and 5 removes per run).
+
+| Criterion | Target | Run 1 | Run 2 | Run 3 | Verdict |
+|---|---|---|---|---|---|
+| 1.  Adding, removing, and persisting wardrobe items | 30/30 | 10/10 | 10/10 | 10/10 | MET (30/30) |
+| 2.  Grounded outfit suggestions | 15/15 | 5/5 | 5/5 | 5/5 (re-run) | MET (15/15) |
+| 3.  Empty wardrobe behavior | 15/15 | 5/5 | 5/5 | 5/5 | MET (15/15) |
+| 4.  Corrupt wardrobe file handling | 15/15 | 5/5 | 5/5 | 5/5 | MET (15/15) |
+| 5.  Validation and normalization when adding items | 18/18 | 6/6 | 6/6 | 5/6 | MISSED (17/18) |
+
+All rows are scored from `results/run_2026-11-15_2327_capstone_before.md`, written by `run_capstone_eval.py`. Every step in it is a real `python app.py …` command in its own process, with response caching off. The one exception is criterion 2's run 3. In the original run, its setup step `wardrobe remove w_007` crashed with `PermissionError`, so the sneakers were never removed, and the agent was styling a wardrobe that still had them. That run was void, not failed, so I re-ran it on the same code: `results/run_2026-11-16_0030_capstone_before-rerun.md`. Its setup succeeded, and all 5 trials passed. Criterion 5's run-3 miss is the same crash, hitting a valid `wardrobe add`.
+
+**Real output from one trial of each criterion**, copied from that results file:
+
+**Criterion 1: adding an item** (run 1, add 1). Prompts from `app.py` (`wardrobe add`); the item is cleaned by `utils/wardrobe_store.py::normalize_item` and saved by `add_item` → `save_wardrobe`.
+
+```
+Typed input:
+Navy Linen Shirt
+Tops
+Navy, navy, White
+Minimal, summer
+Runs large
+
+Added:
+  w_011  Navy Linen Shirt
+        category:   tops
+        colors:     navy, white
+        style tags: minimal, summer
+        notes:      Runs large
+
+Stored in data/wardrobe.json:
+{"name": "Navy Linen Shirt", "category": "tops", "colors": ["navy", "white"], "style_tags": ["minimal", "summer"], "notes": "Runs large", "id": "w_011"}
+```
+
+**Criterion 2: grounded outfit** (`denim jacket under $50`, run 1, trial 1, with w_007 and w_008 removed). The outfit is written by `tools.py::suggest_outfit`, checked by `tools.py::check_grounding`, and both steps are run by `agent.py::run_agent`.
+
+```
+[3] check_wardrobe
+      in:  dict with keys: items, selected_category
+      out: 1 items: shoes…
+      →    branch: missing shoes, continuing
+[4] suggest_outfit
+      in:  dict with keys: selected_item, wardrobe, missing_categories, feedback
+      out: Outfit 1: Double Denim Streetwear - NEW: Denim Jacket — Light Wash, Cropped - w_001: Baggy straight-leg jeans,…
+[5] check_grounding
+      in:  dict with keys: cited
+      out: True
+      →    every piece is in the wardrobe
+
+Outfit 1: Double Denim Streetwear
+- NEW: Denim Jacket — Light Wash, Cropped
+- w_001: Baggy straight-leg jeans, dark wash
+- w_003: White ribbed tank top
+- w_010: Black crossbody bag
+Vibe: A contrasting Canadian tuxedo vibe playing with different denim washes and relaxed proportions.
+
+Outfit 2: Casual Khaki Layer
+- NEW: Denim Jacket — Light Wash, Cropped
+- w_002: Wide-leg khaki trousers
+- w_003: White ribbed tank top
+- w_009: Brown leather belt
+Vibe: A timeless, balanced mix of classic streetwear and minimal earth tones.
+
+Missing: shoes
+```
+
+The setup step that voided run 3 (`python app.py wardrobe remove w_007`, exit 1):
+
+```
+Remove this item? (y/n):
+PermissionError: [WinError 5] Access is denied: '...\data\wardrobe.json.tmp' -> '...\data\wardrobe.json'
+```
+
+**Criterion 3: empty wardrobe** (`denim jacket under $50 --empty-wardrobe`, run 1, trial 1). The general-advice prompt is in `tools.py::suggest_outfit`; the note is set by `agent.py::run_agent` at the `check_wardrobe` branch.
+
+```
+[2] check_wardrobe
+      in:  dict with keys: items, selected_category
+      out: [] (empty)
+      →    branch: empty wardrobe, continuing with general advice
+...
+[4] check_grounding
+      in:  dict with keys: cited
+      →    empty wardrobe: general advice isn't meant to be grounded
+
+  Fit card: Found this vintage Wrangler denim jacket on Poshmark for $42.00, and it's the ultimate blank canvas with great structured shoulders. I paired the light blue cropped outerwear over a black ribbed turtleneck bodysuit, high-waisted olive green utility pants, and chunky black loafers for a true 90s streetwear meets smart-casual vibe.
+
+  Note:     Your wardrobe is empty, so these are general styling ideas. Add your clothes with: python app.py wardrobe add
+```
+
+**Criterion 4: corrupt wardrobe file** (`denim jacket under $50` with `{"items": [broken` in `data/wardrobe.json`, run 1, trial 1, exit 0). The `get_wardrobe` call over MCP fails, and `agent.py::run_agent` stops with this message.
+
+```
+[1] search_listings
+      in:  dict with keys: description, size, max_price
+      out: 7 items: Denim Jacket — Light Wash, Cropped, High-Waisted Denim Shorts — Cutoff, Denim Vest — Medium Wash, Studded … +4 more
+[2] get_wardrobe
+      in:  dict with keys: 
+      →    branch: MCP call failed, stopping
+
+  Couldn't read your saved wardrobe. Check that data/wardrobe.json is valid JSON, or delete it to reset to the demo wardrobe.
+
+0 model calls this session
+```
+
+**Criterion 5: validation** (run 1, case B, whitespace-only name). Rejected by `utils/wardrobe_store.py::validate_item`, called from `add_item`.
+
+```
+Not saved:
+  - Item field "name" cannot be empty.
+```
+
+And the miss (run 3, case A, a valid item with repeated colors and tags, exit 1):
+
+```
+Typed input:
+Striped Tee
+tops
+  Red, red , NAVY, navy 
+ Casual, casual,  STRIPED 
+
+PermissionError: [WinError 5] Access is denied: '...\data\wardrobe.json.tmp' -> '...\data\wardrobe.json'
+```
+
+## Capstone Run Log — After
+
+<!-- python run_capstone_eval.py --label after, graded the same way, same table. -->
