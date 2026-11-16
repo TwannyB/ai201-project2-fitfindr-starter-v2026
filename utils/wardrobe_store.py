@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import time
 from utils.data_loader import get_example_wardrobe, load_wardrobe_schema
 from typing import Optional
 
@@ -185,10 +186,27 @@ def save_wardrobe(wardrobe: dict, path: Optional[str] = None) -> None:
     # Write the wardrobe to a temporary file
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(wardrobe, f, indent=2)
-    # Rename the temporary file to the target path, replacing the old file
-    os.replace(tmp, path)  # Atomic replace to avoid partial writes
+    # Rename the temporary file to the target path, replacing the old file.
+    # Atomic, so a crash never leaves a half-written wardrobe. On Windows the
+    # rename fails with PermissionError while another process (antivirus, the
+    # search indexer) briefly has wardrobe.json open; the capstone "before"
+    # run hit this 2 times in about 80 saves. The lock clears within
+    # milliseconds, so retry a few times before giving up.
+    for attempt in range(_REPLACE_ATTEMPTS):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == _REPLACE_ATTEMPTS - 1:
+                raise  # still locked after ~1.5 s: a real problem, report it
+            time.sleep(_REPLACE_WAIT_SECONDS * (attempt + 1))
 
-    
+
+# save_wardrobe's retry: waits 0.1, 0.2, ... 0.5 s between attempts (1.5 s total).
+_REPLACE_ATTEMPTS = 6
+_REPLACE_WAIT_SECONDS = 0.1
+
+
 
 def add_item(fields: dict) -> tuple[dict | None, list[str]]:
     """
