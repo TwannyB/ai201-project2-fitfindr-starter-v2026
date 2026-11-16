@@ -145,3 +145,116 @@ I inferred an incorrect output of suggest_outfit(a single group of listing items
      A number you missed stays where it is, gets diagnosed, and gets a fix
      attempted. That's where the points are.
      ───────────────────────────────────────────────────────────────────────── -->
+
+---
+
+# Capstone criteria — unit 9, Milestone 4
+
+Five criteria for the capstone extension (persistent wardrobe, `get_wardrobe`, grounded outfits), written before any capstone results existed. The unit 3/4 criteria above are unchanged.
+
+**For every criterion:**
+- **A fresh demo wardrobe** means: delete `data/wardrobe.json`. The next command recreates it from the 10-item demo wardrobe (`w_001`–`w_010`, `next_id` 11).
+- **Quote queries with single quotes**, in bash and PowerShell alike. In double quotes, `$50` is read as a variable: bash turns `under $50` into `under 0` and PowerShell into `under ` with no price.
+
+## Capstone criterion 1: Adding, removing, and persisting wardrobe items
+
+Each run starts with a fresh demo wardrobe. Add five items through the CLI (`python app.py wardrobe add`), then remove the last listed item five times (`python app.py wardrobe remove <id>`, confirming with `y`), targeting the five newly added items.
+
+Each addition passes if:
+- The item's ID matches the wardrobe's `next_id` value recorded immediately before adding it.
+- The item appears with the correct details in both `wardrobe list` and `data/wardrobe.json`. Style tags and notes must be checked in the JSON file. `wardrobe list` cuts names off after 40 characters and colors after 20, ending them with `…`; a value cut off this way still counts as correct in the list as long as the JSON file has the full value.
+- All text fields are trimmed. Categories are lowercase, and colors and style tags are lowercase and deduplicated.
+- Running `wardrobe list` in a separate process still shows the saved item.
+
+Each removal passes if only the targeted ID disappears from both the list and JSON file, and every other item remains unchanged. After all five removals, the wardrobe must contain the original demo items.
+
+**Target:** Five successful additions and five successful removals per run across three runs: **30/30 operations**.
+
+**Why this target:** These operations are deterministic. Users must be able to trust that their wardrobe changes are saved accurately and that removing one item will not delete another.
+
+## Capstone criterion 2: Grounded outfit suggestions
+
+Start each run with a fresh demo wardrobe and remove shoes `w_007` and `w_008`:
+
+```
+python app.py wardrobe remove w_007
+python app.py wardrobe remove w_008
+```
+
+Confirm each removal with `y`. Then run these queries through the agent loop:
+
+```
+python app.py ask 'denim jacket under $50'
+python app.py ask 'vintage levis jeans'
+```
+
+Run the first query three times and the second query twice in each run.
+
+A trial passes if every wardrobe piece cited in the final output, after any checking and retrying, uses an ID present in the loaded wardrobe and a name matching that item. A shortened name passes if it only uses words from the saved name: dropping words is fine ("Black denim jacket" for "Vintage black denim jacket"), adding words is not ("Oversized black denim jacket"). Evaluate the piece lines (lines starting with `- `); exclude the vibe line from this check. Every piece line other than the `- NEW:` line must cite a `w_NNN` ID; a piece line with no ID, such as `- Gold hoop earrings`, fails the trial. Neither removed shoe ID may appear as an owned piece.
+
+An explicit "couldn't build" response also passes because it avoids inventing wardrobe items.
+
+**Target:** **5/5 trials in each of three runs: 15/15 total.**
+
+**Why this target:** Grounding is central to the extension. Users should receive suggestions based on clothing they actually own, and the system should acknowledge when it cannot build an outfit.
+
+## Capstone criterion 3: Empty wardrobe behavior
+
+Load an empty wardrobe using `--empty-wardrobe`, then run an `ask` query for a valid searchable item:
+
+```
+python app.py ask 'denim jacket under $50' --empty-wardrobe
+```
+
+A trial passes if:
+- The response explicitly states that the wardrobe is empty and that the suggestions are general styling ideas, with the note: *"Your wardrobe is empty, so these are general styling ideas. Add your clothes with: python app.py wardrobe add"*.
+- No wardrobe item IDs are cited.
+- A fit card is produced.
+- The command completes without a traceback.
+
+**Target:** **5/5 trials in each of three runs: 15/15 total.**
+
+**Why this target:** An empty wardrobe is an expected user state. The application must explain that limitation while still providing useful general advice.
+
+## Capstone criterion 4: Corrupt wardrobe file handling
+
+Back up `data/wardrobe.json`, then replace its contents with invalid JSON:
+
+```text
+{"items": [broken
+```
+
+Run:
+
+```
+python app.py ask 'denim jacket under $50'
+```
+
+A trial passes if the application displays:
+
+> Couldn't read your saved wardrobe. Check that data/wardrobe.json is valid JSON, or delete it to reset to the demo wardrobe.
+
+The command must exit normally with exit code `0`, without a traceback or silently treating the corrupt file as an empty wardrobe. Restore the original file after testing.
+
+**Target:** **5/5 trials in each of three runs: 15/15 total.**
+
+**Why this target:** Silently ignoring a corrupt file could mislead users into thinking their wardrobe is empty. A clear error and recovery instructions let them address the problem.
+
+## Capstone criterion 5: Validation and normalization when adding items
+
+Each run starts with a fresh demo wardrobe and contains the following six test cases, entered through `python app.py wardrobe add`. Use otherwise valid values whenever testing one field.
+
+| Case | Input | Expected result |
+|---|---|---|
+| A | Repeated colors and style tags, including capitalization differences and surrounding spaces | The item is saved once. The CLI shows `Added:` with cleaned values, and the stored lists are lowercase, trimmed, and deduplicated. |
+| B | Blank or whitespace-only name | The item is rejected with `Item field "name" cannot be empty.` |
+| C | Blank or whitespace-only category | The item is rejected with `Item field "category" must be one of: tops, bottoms, outerwear, shoes, accessories.` |
+| D | Blank or whitespace-only colors | The item is rejected with `Item field "colors" must contain at least one color.` |
+| E | Invalid category, such as `furniture` | The item is rejected with the same category message as Case C. |
+| F | Valid required fields, with style tags and notes left blank | The item is saved successfully because these fields are optional. |
+
+For every rejected addition, the CLI must show `Not saved:` with the reason. The wardrobe list and JSON file must remain unchanged.
+
+**Target:** **6/6 cases in each of three runs: 18/18 total.**
+
+**Why this target:** Validation is deterministic. Required fields must be enforced consistently, optional fields must remain optional, and repeated tags should not create messy wardrobe data.
