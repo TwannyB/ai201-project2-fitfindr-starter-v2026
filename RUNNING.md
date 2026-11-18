@@ -75,53 +75,9 @@ python -c "import json; [print(r['ts'], r['status'], r['duration_ms'], r.get('mo
 
 ---
 
-## Before your first class
-
-*(The original course setup notes, kept for reference. The Quick start above
-covers the same steps.)*
-
-Setup happens **before class**. Per-operating-system commands are in the
-Quick start above.
-
-**Same API key you set up in unit 1.** Nothing new to sign up for. There is one
-new package — the MCP SDK, for unit 4 — and it installs with everything else.
-
-From inside this repo after you've forked and cloned it:
-
-**macOS / Linux**
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env          # then paste your key into .env
-python test.py
-```
-
-**Windows (PowerShell)**
-
-```powershell
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-copy .env.example .env         # then paste your key into .env
-python test.py
-```
-
-**You're ready when `python test.py` passes.**
-
-If it doesn't and you've made one honest attempt at the error, post the
-**whole** output in the help channel.
-
-> Activate the virtual environment every time you open a new terminal. You
-> should see `(.venv)` at the start of your prompt.
-
----
-
 ## Your first five minutes
 
-Start with the data. Your tools will only be as good as your understanding of
-what they're reading, and ten minutes here saves an hour of confused debugging.
+Look at the data first, so the results make sense:
 
 ```bash
 python app.py fields                    # what a listing and a wardrobe item hold
@@ -147,79 +103,54 @@ and write a caption. Add `--trace` to watch each step and why it was taken.
 | Command | What it does |
 |---|---|
 | `python test.py` | Checks your environment. Run it whenever something feels off |
-| `python app.py fields` | The fields a listing and a wardrobe item have — **Milestone 1** |
+| `python app.py fields` | The fields a listing and a wardrobe item have |
 | `python app.py listings` | Browse the data. `--full` for whole records, `-n` for how many |
 | `python app.py examples` | Queries worth trying, including one that matches nothing |
 | `python app.py ask '...'` | Run the agent on one query — **single quotes** |
 | `python app.py ask` | Keep asking until you press Enter on an empty line |
-| `python agent.py` | Runs both example paths — one that matches, one that can't |
-| `python mcp_server.py` | Starts your MCP server — **unit 4** |
-| `python mcp_client.py` | Asks the server what it offers — **unit 4** |
-| `python run_eval.py --label before` | Runs every scenario five times and writes the run log — **unit 4** |
-| `python serve.py` | Serves the agent over HTTP instead of exiting — **unit 9** |
-| `python app.py wardrobe list` | Show your saved wardrobe (`data/wardrobe.json`) — **capstone** |
-| `python app.py wardrobe add` | Add an item; prompts for each field and validates it |
+| `python app.py wardrobe list` | Show your saved wardrobe (`data/wardrobe.json`) |
+| `python app.py wardrobe add` | Add an item; prompts for each field, cleans it up, and refuses bad input with a reason |
 | `python app.py wardrobe edit w_003` | Change an item; Enter keeps the current value |
 | `python app.py wardrobe remove w_003` | Delete an item (asks first). IDs are never reused |
+| `python serve.py` | Serves the agent over HTTP on `http://127.0.0.1:5000` |
+| `python run_capstone_eval.py` | Runs the five wardrobe criteria (`criteria.md`) and writes `results/run_<time>_capstone_<label>.md`. Options: `--criteria 1,4,5` (**comma-separated**), `--runs 3`, `--label before`. It backs up `data/wardrobe.json` and restores it at the end. Criteria 2 and 3 make real model calls |
+| `python run_eval.py --label before` | The earlier (unit 4) eval: every scenario five times |
+| `python measure_cost.py send` | Sends ten `/ask` requests to the deployed app (or `--url http://127.0.0.1:5000`) to measure cost |
+| `python measure_cost.py summarize <file>` | Averages tokens and time from saved run records. Add `--price-in` / `--price-out` (US$ per 1M tokens) for a dollar figure |
+| `python agent.py` | Runs both example paths — one that matches, one that can't |
+| `python mcp_server.py` / `python mcp_client.py` | Start the MCP server / ask it what tools it offers |
 
 Useful flags on `ask`:
 
 | Flag | What it does |
 |---|---|
-| `--trace` | Print the loop step by step, once you've added the trace calls |
-| `--empty-wardrobe` | Run as a user with nothing saved — one of unit 4's failure modes |
+| `--trace` | Print each step of the loop: what went in, what came out, and why |
+| `--empty-wardrobe` | Run as if nothing were saved (your file isn't touched). You get general styling advice and a note saying the wardrobe is empty |
 
 ---
 
-## Which command goes with which milestone
+## Running it as a server
 
-### Unit 3 — the build
-
-| Milestone | What you're doing | Where |
-|---|---|---|
-| 1 | Read the data, run the starter | `app.py fields`, `app.py listings --full`, `app.py ask` |
-| 2 | Spec your three tools | README, **Tool Inventory** |
-| 3 | Write your acceptance criteria | `criteria.md` |
-| 4 | Build the three tools | `tools.py`, tested one at a time from a terminal |
-| 5 | Wire the loop and the state | `agent.py::run_agent` |
-| 6 | Write it up | README |
-
-### Unit 4 — the test
-
-| Milestone | What you're doing | Where |
-|---|---|---|
-| 1 | Move one tool onto MCP | `mcp_server.py`, then `mcp_client.call_tool` in `run_agent` |
-| 2 | Break it on purpose, then trace it | `trace.py`, `app.py ask --trace` |
-| 3 | Run your test | `scenarios.py`, then `run_eval.py --label before` |
-| 4 | Call each criterion, diagnose the misses | README |
-| 5 | Fix one thing and re-run | `run_eval.py --label after` |
-| 6 | Say what's still broken | README |
-
----
-
-## Running it somewhere else — **unit 9**
-
-Everything above exits when the command finishes. A host has nothing to keep
-running, so before you can deploy this you need something that stays up.
-`serve.py` is that: the same `run_agent()`, behind two HTTP routes.
+Everything above exits when the command finishes. `serve.py` stays up: the
+same `run_agent()`, behind two HTTP routes.
 
 On your machine:
 
 ```bash
 python serve.py
-curl -X POST http://localhost:5000/ask \
+curl -X POST http://127.0.0.1:5000/ask \
   -H 'Content-Type: application/json' \
   -d '{"query": "vintage graphic tee under $30"}'
 ```
 
 That's bash. On Windows, use the PowerShell requests in
 [Try the hosted version](#try-the-hosted-version) with the URL swapped for
-`http://127.0.0.1:5000` (not `localhost`, which adds ~2 s per request there).
+`http://127.0.0.1:5000`.
 
-On a host, the start command is:
+On a host, the start command is (it's already in `render.yaml`):
 
 ```bash
-gunicorn serve:app
+gunicorn serve:app --timeout 120 --threads 4
 ```
 
 | Thing | What it means |
@@ -228,16 +159,15 @@ gunicorn serve:app
 | `POST /ask` | `{"query": "...", "wardrobe": {...}}` — wardrobe optional. Returns the session dict, `error` and all |
 | `GET /health` | Says `ok` if the app is awake |
 | It answers one request at a time | On purpose. A second request waits for the first to finish, and prints `[serve] another request is still running` while it waits. An MCP tool call starts a whole second Python process, and the free tier's 512 MB has no room for two of those at once — and `generate.py`'s rate-limit counting assumes one caller. The reasoning is written out in `serve.py` |
-| `gunicorn serve:app`, exactly | Not `-k gevent`, not `-k eventlet`, not wrapped for uvicorn. `mcp_client.call_tool` uses `asyncio.run()`, which won't start inside a running event loop, so an async worker breaks **every** MCP call — and only once you've deployed it |
+| A sync worker, not async | Not `-k gevent`, not `-k eventlet`, not wrapped for uvicorn. `mcp_client.call_tool` uses `asyncio.run()`, which won't start inside a running event loop, so an async worker breaks **every** MCP call — and only once you've deployed it |
 | The first request is slow | The free tier puts your app to sleep after about fifteen minutes of nothing. The next request wakes it up and waits for it — around a minute. Not a bug, and worth knowing before you demo it |
 
-`serve.py` ships with **no logging and no timing in it**, on purpose. You add
-that yourself in the follow-along, before you deploy — instrumenting first is
-the point of the session.
+Every request, including rejected and crashed ones, leaves a timed record: see
+[Run records](#run-records).
 
 ---
 
-## Deployed on Render — **capstone**
+## Deployed on Render
 
 **URL:** https://fitfindr-ppek.onrender.com
 
@@ -416,26 +346,29 @@ you need into the README.
 | File | What it does |
 |---|---|
 | `config.py` | Every setting worth changing — **TEMPERATURE and the cache are at the top** |
-| `tools.py` | Your three tools. **Stubs — you build these** |
-| `agent.py` | The planning loop and the session. **Stub — you build this** |
-| `generate.py` | The only thing that calls out to a service. Handles pacing and quota |
-| `trace.py` | The trace helper, and the loop's stop condition |
-| `app.py` | The command line |
-| `serve.py` | The same agent over HTTP, for deploying — **unit 9** |
-| `mcp_server.py` | Your MCP server — **unit 4, you register the tool** |
-| `mcp_client.py` | Calling an MCP tool from your agent. Given to you |
-| `scenarios.py` | What your test runs. **You fill this in** |
-| `run_eval.py` | Runs the scenarios repeatedly and writes the run log |
-| `criteria.md` | Your five acceptance criteria. **You fill this in** |
-| `data/` | 40 listings and the wardrobe schema |
-| `utils/data_loader.py` | Loading the data. Use this rather than reading the files yourself |
-| `results/` | Run logs. **Commit these** — they're your evidence |
+| `agent.py` | The planning loop: search, read the wardrobe, check it, suggest outfits, check grounding (one retry), write the fit card |
+| `tools.py` | The tools: `search_listings`, `suggest_outfit`, `check_grounding`, `create_fit_card` |
+| `utils/wardrobe_store.py` | **The saved wardrobe:** load, validate and clean items, add/edit/remove, ID counter, safe saving |
+| `mcp_server.py` / `mcp_client.py` | `search_listings` and `get_wardrobe` served over MCP, and how the agent calls them |
+| `generate.py` | The only thing that calls the model. Handles pacing, caching and quota |
+| `trace.py` | What `--trace` prints, and the loop's stop condition |
+| `app.py` | The command line, including `wardrobe list/add/edit/remove` |
+| `serve.py` | The same agent over HTTP; `/ask` accepts a wardrobe in the request |
+| `run_log.py` | One JSON record per run, to `logs/runs.jsonl` (and stdout for HTTP) |
+| `criteria.md` | Acceptance criteria: the original project's, then the five capstone (wardrobe) criteria |
+| `run_capstone_eval.py` | Tests the capstone criteria |
+| `scenarios.py` / `run_eval.py` | The original project's test |
+| `measure_cost.py` | Measures tokens and time per run |
+| `render.yaml` | Render deployment settings |
+| `data/` | 40 listings, the wardrobe schema, and your saved `wardrobe.json` (not committed; delete it to reset to the 10-item demo wardrobe) |
+| `utils/data_loader.py` | Loading listings and the demo wardrobe |
+| `results/` | Eval run logs, graded |
 
 ---
 
 ## The two settings people go looking for
 
-Both are at the top of `config.py`, and the brief points at them by name.
+Both are at the top of `config.py`.
 
 If your fit cards come out **word-for-word identical** every time, it is one of:
 
@@ -449,9 +382,8 @@ If your fit cards come out **word-for-word identical** every time, it is one of:
 
 ## About rate limits
 
-**This is the heaviest pair in the course for call volume.** Two of your three
-tools call the model, so one agent run is several requests, and a few runs back
-to back while debugging can cross the per-minute limit.
+One run makes 2 model calls (3 with a grounding retry), and `generate.py`
+keeps to 15 calls a minute, so a few runs back to back can cross the per-minute limit.
 
 `generate.py` handles it:
 
@@ -463,9 +395,8 @@ to back while debugging can cross the per-minute limit.
   ending — look for that before raising the number.
 - **It counts your calls** and prints the total when you exit.
 
-`config.MAX_ITERATIONS` is the loop's own stop condition. Your loop this unit
-is short enough that you may never hit it. Keep it — a missing stop condition
-is the most common architectural failure in production agents.
+`config.MAX_ITERATIONS` (12) is the loop's own stop condition. A normal run
+never hits it; don't lower it, because the grounding retry needs the room.
 
 ---
 
@@ -473,32 +404,21 @@ is the most common architectural failure in production agents.
 
 | What you see | What it means |
 |---|---|
-| `The planning loop isn't built yet` | Correct, at the start. That's the TODO in `agent.py` |
 | `No GEMINI_API_KEY found` | No `.env`, or the key wasn't pasted in. On Windows check it didn't save as `.env.txt` |
-| A message saying the model couldn't be reached | Usually a bad key. This is also **exactly what unit 4 Milestone 2 asks you to trigger on purpose** |
+| A message saying the model couldn't be reached | Usually a bad key in `.env` |
+| `Couldn't read your saved wardrobe` | `data/wardrobe.json` isn't valid JSON (e.g. hand-edited). Fix it, or delete it to reset to the demo wardrobe |
+| `Couldn't build an outfit from only your saved pieces` | The model cited something you don't own twice in a row, so the run stopped rather than show it. Run it again, or add more pieces |
+| `Missing: shoes` (or tops/bottoms) under an outfit | Your wardrobe has nothing in that category, so the outfit says what to add instead of inventing it |
+| `Not saved:` with a list after `wardrobe add` | The item was refused (blank name, no color, unknown category). Nothing was written; add it again |
 | `[rate limit] ... Waiting 34s` | Working as intended. Leave it |
 | `[serve] another request is still running` | Also working as intended. `serve.py` answers one request at a time; yours is queued behind one that's mid-run |
 | `QuotaGuard: This session has made 300 requests` | A loop isn't ending. Find it before raising the budget |
-| `The loop ran 11 times, past MAX_ITERATIONS` | Same thing, caught earlier |
+| `The loop ran 13 times, past MAX_ITERATIONS (12)` | Same thing, caught earlier |
 | `The server doesn't offer a tool called '...'` | Nothing registered in `mcp_server.py` yet, or the name doesn't match |
 | MCP returns a string where you expected a list | You're not going through `mcp_client.call_tool`, which unwraps it |
 | Fit cards identical every run | `CACHE_ENABLED` or `TEMPERATURE`. See above |
-| `--trace` prints nothing | You haven't added `trace.step()` calls yet — unit 4, Milestone 2 |
 | `IncompleteFieldDefinitionWarning: Field 'lifespan'` | Harmless noise from the MCP library's dependencies. Not your code, not an error. Ignore it |
 | A price ceiling you typed is being ignored | You used double quotes in PowerShell. `$30` vanished. Use single quotes |
 | `UnicodeEncodeError: 'charmap' codec can't encode` | Shouldn't happen — `config.py` sets the console to UTF-8. If you see it, you're running a file that doesn't import `config` |
 
-Still stuck after one honest attempt? Post in the help channel with the full
-error, what you ran, and what you expected.
-
----
-
-## A note on committing
-
-At least four new commits in unit 3, at least four more in unit 4. Your commit
-history is what shows your criteria existed before your results did.
-
-**Do not delete and recreate this repository.** You submit the same URL both
-units.
-
-`results/` is deliberately **not** in `.gitignore`.
+Still stuck? Send me the full error, the command you ran, and what you expected.
