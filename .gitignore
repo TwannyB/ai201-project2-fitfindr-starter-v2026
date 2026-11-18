@@ -29,3 +29,6 @@ data/wardrobe.json.eval-backup
 
 # Run records (run_log.py): runtime output, copied into the README by hand
 logs/
+
+# Notes for Claude Code sessions, kept local
+CLAUDE.md
